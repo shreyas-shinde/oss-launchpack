@@ -51,7 +51,7 @@ export type Launchpack = {
   defaultPort: number
   supportModel: SupportModel
   whyNow: string
-  managedOpportunity: string
+  operationsFit: string
   licenseNote: string
   operations: LaunchpackOperations
   files: LaunchpackFile[]
@@ -66,8 +66,8 @@ const openWebUi: Launchpack = {
   supportModel: 'review-required',
   whyNow:
     'Private AI chat is one of the clearest self-hosting pulls, but non-experts still need a sane compose file, health check, and upgrade path.',
-  managedOpportunity:
-    'Managed Open WebUI can bundle OAuth, model routing, backups, upgrades, and GPU/CPU hosting choices.',
+  operationsFit:
+    'Open WebUI operations need OAuth, model routing, backups, upgrades, and GPU/CPU hosting choices documented in one inspectable pack.',
   licenseNote:
     'Unofficial launchpack. Open WebUI uses a custom permissive license with branding protection; keep upstream branding intact and do not imply official endorsement.',
   operations: {
@@ -178,8 +178,8 @@ const n8n: Launchpack = {
   supportModel: 'customer-owned-only',
   whyNow:
     'Agentic workflow automation has mainstream pull, but production n8n needs durable Postgres storage and secure encryption defaults.',
-  managedOpportunity:
-    'n8n support should focus on customer-owned/internal deployments unless a separate upstream commercial agreement allows hosted or embedded access.',
+  operationsFit:
+    'n8n operations need customer-owned/internal deployment guidance, stable encryption keys, durable Postgres, and clear hosted-use license boundaries.',
   licenseNote:
     'n8n is fair-code under the Sustainable Use License and Enterprise License. Do not resell hosted n8n access, white-label n8n, or embed it for customers without confirming the required n8n agreement.',
   operations: {
@@ -312,8 +312,8 @@ const memos: Launchpack = {
   supportModel: 'permissive-hosting-fit',
   whyNow:
     'Personal knowledge tools are growing with the broader self-hosted movement, and Memos has a simple operational shape for new self-hosters.',
-  managedOpportunity:
-    'Managed Memos can sell private hosting, automatic backups, custom domains, and low-friction import/export.',
+  operationsFit:
+    'Memos operations are a good starter shape for private notes, automatic backups, custom domains, and low-friction import/export.',
   licenseNote:
     'Memos is MIT-licensed upstream; preserve upstream copyright and license notices.',
   operations: {
@@ -397,8 +397,8 @@ const uptimeKuma: Launchpack = {
   supportModel: 'permissive-hosting-fit',
   whyNow:
     'Every self-hosted stack needs uptime checks before it becomes trusted infrastructure.',
-  managedOpportunity:
-    'Uptime Kuma support can bundle monitor setup, notification channels, incident routing, upgrades, and backup checks.',
+  operationsFit:
+    'Uptime Kuma operations need monitor setup, notification channels, incident routing, upgrades, and backup checks.',
   licenseNote:
     'Uptime Kuma is MIT-licensed upstream; preserve upstream copyright and license notices.',
   operations: {
@@ -484,8 +484,8 @@ const sentry: Launchpack = {
   supportModel: 'customer-owned-only',
   whyNow:
     'Sentry is a high-demand observability app, but its self-hosted stack is intentionally complex and operationally heavy enough to need a wrapper around install, backups, upgrades, and support boundaries.',
-  managedOpportunity:
-    'Sentry work should focus on customer-owned self-hosted installations, upgrade help, backup validation, and migration planning. Do not offer hosted Sentry resale or a competing Sentry-like service without an upstream agreement.',
+  operationsFit:
+    'Sentry operations should focus on customer-owned self-hosted installations, upgrade help, backup validation, and migration planning with clear upstream boundaries.',
   licenseNote:
     'Sentry self-hosted is Fair Source under FSL-1.1-Apache-2.0. Internal/customer-owned deployments and professional services can fit the license, but selling deployed self-hosted Sentry as SaaS or a similar commercial offering is prohibited by upstream terms.',
   operations: {
@@ -635,8 +635,8 @@ const posthog: Launchpack = {
   supportModel: 'customer-owned-only',
   whyNow:
     'PostHog is a large open-source product-engineering platform, but its self-hosted hobby deployment has a real data stack behind it: Postgres, ClickHouse, Redis, Kafka, object storage, and proxy state.',
-  managedOpportunity:
-    'PostHog work should focus on customer-owned hobby deployments, backup validation, upgrade help, and migration planning. Do not market this as a PostHog Cloud replacement or imply upstream support.',
+  operationsFit:
+    'PostHog operations should focus on customer-owned hobby deployments, backup validation, upgrade help, and migration planning without implying upstream support.',
   licenseNote:
     'PostHog open-source self-hosted deployments are MIT licensed and provided without guarantee. The upstream repository also contains an ee/ directory under a separate Enterprise license; preserve upstream notices and do not assume paid features or upstream support are included.',
   operations: {
@@ -817,8 +817,8 @@ const outline: Launchpack = {
   supportModel: 'customer-owned-only',
   whyNow:
     'Teams want a self-hosted Notion/Confluence alternative, but Outline needs a correct URL, durable Postgres, Redis, file storage, auth provider setup, and careful license boundaries.',
-  managedOpportunity:
-    'Outline support should focus on customer-owned team deployments, SSO/OIDC setup, backups, upgrades, and migration help. Do not resell Outline as a multi-tenant hosted document service without an upstream commercial agreement.',
+  operationsFit:
+    'Outline operations should focus on customer-owned team deployments, SSO/OIDC setup, backups, upgrades, and migration help with clear BSL use boundaries.',
   licenseNote:
     'Outline is BSL-1.1 licensed. Current versions allow internal/customer-owned use but prohibit using the software for a commercial Document Service where third parties create teams and documents they control. Versions convert to Apache-2.0 on their BSL change date; review the upstream LICENSE for the exact version and date.',
   operations: {
@@ -1002,6 +1002,225 @@ echo "Outline is reachable at $APP_URL"
   ],
 }
 
+const supabase: Launchpack = {
+  id: 'supabase',
+  name: 'Supabase',
+  category: 'Backend platform',
+  upstream: 'https://github.com/supabase/supabase/tree/master/docker',
+  defaultPort: 8000,
+  supportModel: 'permissive-hosting-fit',
+  whyNow:
+    'Supabase is one of the clearest open-source backend platforms, but self-hosting means operating a coordinated stack: Postgres, Auth, PostgREST, Realtime, Storage, Studio, Kong, Supavisor, functions, secrets, and optional logs/S3 layers.',
+  operationsFit:
+    'Supabase operations need an official-stack wrapper, secret generation checklist, backup boundaries for Postgres/storage/functions/config, and upgrade notes that keep service versions coordinated.',
+  licenseNote:
+    'The Supabase repository is Apache-2.0 licensed. Self-hosted Supabase is community-supported and omits several managed-platform features; preserve upstream notices, review included service licenses, and do not imply official Supabase Cloud support.',
+  operations: {
+    healthcheckUrl: 'http://localhost:8000/rest/v1/',
+    backupTargets: [
+      {
+        type: 'command',
+        id: 'supabase-postgres-logical',
+        description:
+          'Logical pg_dumpall export of the official Supabase Postgres service, including roles and databases.',
+        backupCommands: [
+          'SUPABASE_PROJECT_DIR="${SUPABASE_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$SUPABASE_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before backing up Supabase." >&2; exit 1; fi',
+          'if [ -f "$SUPABASE_PROJECT_DIR/.env" ]; then set -a; . "$SUPABASE_PROJECT_DIR/.env"; set +a; fi',
+          '(cd "$SUPABASE_PROJECT_DIR" && docker compose exec -T db sh -c "PGPASSWORD=\\"$POSTGRES_PASSWORD\\" pg_dumpall -U postgres") > "$BACKUP_DIR_ABS/supabase-pg_dumpall.sql"',
+        ],
+        restoreCommands: [
+          'SUPABASE_PROJECT_DIR="${SUPABASE_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$SUPABASE_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before restoring Supabase." >&2; exit 1; fi',
+          'if [ ! -f "$BACKUP_DIR_ABS/supabase-pg_dumpall.sql" ]; then echo "Missing dump: $BACKUP_DIR_ABS/supabase-pg_dumpall.sql" >&2; exit 1; fi',
+          'if [ -f "$SUPABASE_PROJECT_DIR/.env" ]; then set -a; . "$SUPABASE_PROJECT_DIR/.env"; set +a; fi',
+          '(cd "$SUPABASE_PROJECT_DIR" && docker compose exec -T db sh -c "PGPASSWORD=\\"$POSTGRES_PASSWORD\\" psql -U postgres -v ON_ERROR_STOP=1") < "$BACKUP_DIR_ABS/supabase-pg_dumpall.sql"',
+        ],
+      },
+      {
+        type: 'command',
+        id: 'supabase-secrets-config',
+        description:
+          'Official Docker .env and db-config pgsodium root key. Losing the key can make vault secrets unrecoverable.',
+        backupCommands: [
+          'SUPABASE_PROJECT_DIR="${SUPABASE_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$SUPABASE_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before backing up Supabase." >&2; exit 1; fi',
+          'if [ -f "$SUPABASE_PROJECT_DIR/.env" ]; then cp "$SUPABASE_PROJECT_DIR/.env" "$BACKUP_DIR_ABS/supabase.env"; chmod 600 "$BACKUP_DIR_ABS/supabase.env"; fi',
+          'if docker volume inspect supabase_db-config >/dev/null 2>&1; then docker run --rm -v supabase_db-config:/db-config:ro -v "$BACKUP_DIR_ABS:/backup" alpine:3.20 sh -c "if [ -f /db-config/pgsodium_root.key ]; then cp /db-config/pgsodium_root.key /backup/pgsodium_root.key; fi"; fi',
+        ],
+        restoreCommands: [
+          'SUPABASE_PROJECT_DIR="${SUPABASE_PROJECT_DIR:-self-hosted}"',
+          'mkdir -p "$SUPABASE_PROJECT_DIR"',
+          'if [ -f "$BACKUP_DIR_ABS/supabase.env" ]; then cp "$BACKUP_DIR_ABS/supabase.env" "$SUPABASE_PROJECT_DIR/.env"; chmod 600 "$SUPABASE_PROJECT_DIR/.env"; fi',
+          'if [ -f "$BACKUP_DIR_ABS/pgsodium_root.key" ]; then docker volume create supabase_db-config >/dev/null; docker run --rm -v supabase_db-config:/db-config -v "$BACKUP_DIR_ABS:/backup:ro" alpine:3.20 sh -c "mkdir -p /db-config && cp /backup/pgsodium_root.key /db-config/pgsodium_root.key"; fi',
+        ],
+      },
+      {
+        type: 'command',
+        id: 'supabase-local-files',
+        description:
+          'Default local Storage files, Edge Functions, and Studio snippets from the official volumes directory.',
+        backupCommands: [
+          'SUPABASE_PROJECT_DIR="${SUPABASE_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$SUPABASE_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before backing up Supabase." >&2; exit 1; fi',
+          'for dir in storage functions snippets; do if [ -d "$SUPABASE_PROJECT_DIR/volumes/$dir" ]; then tar -C "$SUPABASE_PROJECT_DIR/volumes" -czf "$BACKUP_DIR_ABS/supabase-$dir.tar.gz" "$dir"; fi; done',
+        ],
+        restoreCommands: [
+          'SUPABASE_PROJECT_DIR="${SUPABASE_PROJECT_DIR:-self-hosted}"',
+          'mkdir -p "$SUPABASE_PROJECT_DIR/volumes"',
+          'for dir in storage functions snippets; do if [ -f "$BACKUP_DIR_ABS/supabase-$dir.tar.gz" ]; then rm -rf "$SUPABASE_PROJECT_DIR/volumes/$dir"; tar -C "$SUPABASE_PROJECT_DIR/volumes" -xzf "$BACKUP_DIR_ABS/supabase-$dir.tar.gz"; fi; done',
+        ],
+      },
+    ],
+    upgrade: {
+      command: './ops/install-official.sh && (cd self-hosted && docker compose pull && docker compose down && docker compose up -d)',
+      notes: [
+        'Review the official docker/CHANGELOG.md and docker/versions.md before updating.',
+        'Back up Postgres, .env, db-config/pgsodium key, Storage files, and functions before every upgrade.',
+        'Pin SUPABASE_SOURCE_REF to a tested commit or tag for production-like installs.',
+        'Follow Supabase Postgres upgrade guides for major Postgres changes instead of swapping the database image casually.',
+        'Keep COMPOSE_FILE overrides such as logs, S3, HTTPS proxy, and Postgres 17 consistent across start, backup, restore, and upgrade commands.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: '.env.example',
+      content: `SUPABASE_SOURCE_REF=master
+SUPABASE_PROJECT_DIR=self-hosted
+SUPABASE_UPSTREAM_DIR=.upstream/supabase
+SUPABASE_HEALTH_URL=http://localhost:8000/rest/v1/
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Supabase Launchpack
+
+This pack wraps the official \`supabase/supabase/docker\` setup instead of
+copying Supabase's coordinated Compose stack into this generator. Supabase
+ships multiple tightly-coupled services, so the launchpack keeps upstream files
+intact and adds an inspectable operations manifest, install script, health
+check, and backup/restore surface around them.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+./ops/install-official.sh
+cd self-hosted
+sh utils/generate-keys.sh
+sh utils/add-new-auth-keys.sh
+# Edit .env before first start: passwords, URLs, dashboard auth, SMTP, OAuth, and storage.
+docker compose config >/dev/null
+sh run.sh start
+cd ..
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:8000 for local testing, or the URL configured in the
+official \`self-hosted/.env\`.
+
+## Operations
+
+- The official Docker setup is community-supported and not the managed Supabase platform.
+- Self-hosted Supabase is a single-project stack; platform features such as managed backups, PITR, branching, and some analytics/vector features are not included.
+- Change all default secrets before first start. The official \`.env.example\` is intentionally not production-secure.
+- Back up Postgres, \`self-hosted/.env\`, the \`supabase_db-config\` pgsodium key, local Storage files, functions, and snippets before upgrades.
+- Use HTTPS through a reverse proxy before exposing auth, dashboard, or API traffic to real users.
+- Prefer S3-compatible Storage for production-like file durability; the default file backend stores files on the host filesystem.
+- Pin \`SUPABASE_SOURCE_REF\` to a tested upstream ref for repeatable installs.
+`,
+    },
+    {
+      path: 'ops/install-official.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+SUPABASE_SOURCE_REF="\${SUPABASE_SOURCE_REF:-master}"
+SUPABASE_PROJECT_DIR="\${SUPABASE_PROJECT_DIR:-self-hosted}"
+SUPABASE_UPSTREAM_DIR="\${SUPABASE_UPSTREAM_DIR:-.upstream/supabase}"
+ROOT_DIR="$(pwd)"
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "git is required to install the official Supabase Docker setup." >&2
+  exit 1
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "Docker Compose is required before installing Supabase self-hosted." >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$SUPABASE_UPSTREAM_DIR")"
+
+if [ ! -d "$SUPABASE_UPSTREAM_DIR/.git" ]; then
+  git clone --filter=blob:none --sparse https://github.com/supabase/supabase.git "$SUPABASE_UPSTREAM_DIR"
+fi
+
+cd "$SUPABASE_UPSTREAM_DIR"
+git fetch --depth 1 origin "$SUPABASE_SOURCE_REF"
+git checkout --detach FETCH_HEAD
+git sparse-checkout init --cone >/dev/null 2>&1 || true
+git sparse-checkout set docker
+cd "$ROOT_DIR"
+
+mkdir -p "$SUPABASE_PROJECT_DIR"
+cp -R "$SUPABASE_UPSTREAM_DIR/docker/." "$SUPABASE_PROJECT_DIR/"
+
+if [ ! -f "$SUPABASE_PROJECT_DIR/.env" ]; then
+  cp "$SUPABASE_PROJECT_DIR/.env.example" "$SUPABASE_PROJECT_DIR/.env"
+fi
+
+echo "Official Supabase Docker setup installed in $SUPABASE_PROJECT_DIR"
+echo "Next: cd $SUPABASE_PROJECT_DIR && sh utils/generate-keys.sh && sh utils/add-new-auth-keys.sh"
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+SUPABASE_PROJECT_DIR="\${SUPABASE_PROJECT_DIR:-self-hosted}"
+APP_URL="\${APP_URL:-\${SUPABASE_HEALTH_URL:-http://localhost:8000/rest/v1/}}"
+
+if [ ! -d "$SUPABASE_PROJECT_DIR" ]; then
+  echo "Run ./ops/install-official.sh before checking Supabase." >&2
+  exit 1
+fi
+
+status="$(curl -sS -o /dev/null -w '%{http_code}' "$APP_URL" || true)"
+
+case "$status" in
+  2*|3*|401|403|404)
+    echo "Supabase gateway is reachable at $APP_URL with HTTP $status"
+    ;;
+  *)
+    echo "Supabase gateway check failed at $APP_URL with HTTP $status" >&2
+    (cd "$SUPABASE_PROJECT_DIR" && docker compose ps)
+    exit 1
+    ;;
+esac
+
+(cd "$SUPABASE_PROJECT_DIR" && docker compose ps)
+`,
+    },
+  ],
+}
+
 const homepage: Launchpack = {
   id: 'homepage',
   name: 'Homepage',
@@ -1011,8 +1230,8 @@ const homepage: Launchpack = {
   supportModel: 'review-required',
   whyNow:
     'Self-hosters quickly accumulate services; a dashboard becomes the front door and status surface for the stack.',
-  managedOpportunity:
-    'Homepage support can bundle service discovery, curated dashboards, docker integration, secret handling, and upgrade checks.',
+  operationsFit:
+    'Homepage operations need service discovery, curated dashboards, Docker integration, secret handling, and upgrade checks.',
   licenseNote:
     'Homepage is GPL-3.0-licensed upstream. Preserve notices and review GPL obligations before distributing modified versions or bundled distributions.',
   operations: {
@@ -1134,6 +1353,7 @@ export const launchpacks = [
   sentry,
   posthog,
   outline,
+  supabase,
   homepage,
 ] as const satisfies readonly Launchpack[]
 

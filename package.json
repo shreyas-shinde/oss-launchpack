@@ -14,6 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "rm -rf .tmp/test-build && tsc -p tsconfig.test.json && node --test .tmp/test-build/test/*.test.js",
+    "generate": "node dist/cli.js generate",
     "check": "pnpm build && pnpm test"
   },
   "keywords": [
@@ -23,13 +24,15 @@
     "deployment",
     "backup",
     "restore",
-    "managed-deployment",
     "observability",
     "sentry",
     "analytics",
     "posthog",
     "knowledge-base",
     "outline",
+    "backend",
+    "postgres",
+    "supabase",
     "oss"
   ],
   "author": "Shreyas Shinde",

@@ -25,21 +25,6 @@ That gap is where launchpacks help:
 - Build trust by making the operational details inspectable.
 - Make it easier to run, audit, and maintain self-hosted apps.
 
-## Hosted Deployment Help
-
-If you want one of these apps deployed or maintained for you, open a
-[hosted deployment request](https://github.com/shreyas-shinde/oss-launchpack/issues/new?template=managed-deployment.yml).
-Availability depends on each upstream project's current license, trademark
-policy, and commercial terms.
-
-Available help:
-
-| Option | For |
-| --- | --- |
-| Setup | One app deployed to your cloud/VPS with handoff notes |
-| Managed | Updates, backups, uptime checks, and support |
-| Team | Multiple apps, custom domains, SSO/OAuth, and priority support |
-
 ## Upstream Licenses and Trademarks
 
 OSS Launchpack is an unofficial community project. The MIT license in this
@@ -63,6 +48,7 @@ multi-customer use.
 | `sentry` | Observability | `customer-owned-only` | <https://github.com/getsentry/self-hosted> | Customer-owned self-hosted setup, backup validation, upgrade support |
 | `posthog` | Product analytics | `customer-owned-only` | <https://github.com/PostHog/posthog> | Customer-owned hobby deployment, backups, upgrade support |
 | `outline` | Team knowledge | `customer-owned-only` | <https://github.com/outline/outline> | Customer-owned team wiki, SSO/OIDC setup, backups |
+| `supabase` | Backend platform | `permissive-hosting-fit` | <https://github.com/supabase/supabase/tree/master/docker> | Official Docker stack wrapper, Postgres/storage/functions backup boundaries |
 | `homepage` | Dashboard | `review-required` | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
 
 Support model meanings:
@@ -120,7 +106,7 @@ Generated packs include:
 2. Validate backup and restore flows on clean VPS hosts.
 3. Document production hardening guides for domains, TLS, updates, and monitoring.
 4. Add pack metadata for resource sizing and upgrade notes.
-5. Add flagship operations packs for Supabase and Dify.
+5. Add a flagship operations pack for Dify.
 
 ## Development
 

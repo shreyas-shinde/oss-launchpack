@@ -21,6 +21,9 @@ async function main(argv: string[]): Promise<void> {
     case 'init':
       await runInit(rest)
       return
+    case 'generate':
+      await runGenerate(rest)
+      return
     default:
       throw new Error(`Unknown command "${command}". Run "oss-launchpack help".`)
   }
@@ -35,12 +38,14 @@ Commands:
   list                         List available launchpacks
   show <pack>                  Show launchpack details
   init <pack> [dir] [--force]  Generate files into a directory
+  generate --app <pack> --output <dir> [--force]
   help                         Show this help
 
 Examples:
   oss-launchpack list
   oss-launchpack show open-webui
   oss-launchpack init n8n ./deploy/n8n
+  oss-launchpack generate --app supabase --output ./deploy/supabase
 `)
 }
 
@@ -71,14 +76,14 @@ Default port: ${pack.defaultPort}
 Support model: ${pack.supportModel}
 Health check URL: ${pack.operations.healthcheckUrl}
 
-License/commercial-use note:
+License and use note:
 ${pack.licenseNote}
 
 Why now:
 ${pack.whyNow}
 
-Managed deployment opportunity:
-${pack.managedOpportunity}
+Operations fit:
+${pack.operationsFit}
 
 Backup targets:
 ${pack.operations.backupTargets
@@ -99,6 +104,37 @@ async function runInit(args: string[]): Promise<void> {
     throw new Error('Missing pack id. Example: oss-launchpack init open-webui')
   }
 
+  await printGenerateResult(packId, targetDir, force)
+}
+
+async function runGenerate(args: string[]): Promise<void> {
+  const force = args.includes('--force')
+  const packId = getFlagValue(args, '--app')
+  const targetDir = getFlagValue(args, '--output')
+
+  if (!packId) {
+    throw new Error('Missing --app. Example: oss-launchpack generate --app supabase --output ./deploy/supabase')
+  }
+
+  if (!targetDir) {
+    throw new Error(
+      'Missing --output. Example: oss-launchpack generate --app supabase --output ./deploy/supabase',
+    )
+  }
+
+  await printGenerateResult(packId, targetDir, force)
+}
+
+function getFlagValue(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag)
+  if (index === -1) {
+    return undefined
+  }
+
+  return args[index + 1]
+}
+
+async function printGenerateResult(packId: string, targetDir: string, force: boolean): Promise<void> {
   const result = await generateLaunchpack(packId, targetDir, { force })
   console.log(`Generated ${result.pack.name} launchpack in ${result.targetDir}`)
   for (const file of result.files) {

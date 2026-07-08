@@ -10,7 +10,7 @@ import { generateLaunchpack } from '../src/generator.js'
 
 const execFileAsync = promisify(execFile)
 
-test('catalog exposes the initial managed-deployment wedges', () => {
+test('catalog exposes the operations-ready wedges', () => {
   const ids = listLaunchpacks().map((pack) => pack.id)
   assert.deepEqual(ids, [
     'open-webui',
@@ -20,6 +20,7 @@ test('catalog exposes the initial managed-deployment wedges', () => {
     'sentry',
     'posthog',
     'outline',
+    'supabase',
     'homepage',
   ])
   assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
@@ -164,6 +165,44 @@ test('generates an Outline launchpack with auth and durable storage guidance', a
   const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
   assert.match(manifest, /"pack": "outline"/)
   assert.match(manifest, /"supportModel": "customer-owned-only"/)
+})
+
+test('generates a Supabase wrapper around the official Docker setup', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('supabase', dir)
+
+  assert.equal(result.files.some((file) => file.endsWith('compose.yaml')), false)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /wraps the official `supabase\/supabase\/docker` setup/)
+  assert.match(readme, /single-project stack/)
+  assert.match(readme, /supabase_db-config/)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /SUPABASE_SOURCE_REF=master/)
+  assert.match(env, /SUPABASE_PROJECT_DIR=self-hosted/)
+
+  const install = await readFile(path.join(dir, 'ops/install-official.sh'), 'utf8')
+  assert.match(install, /git clone --filter=blob:none --sparse/)
+  assert.match(install, /git sparse-checkout set docker/)
+  assert.match(install, /utils\/generate-keys\.sh/)
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /SUPABASE_HEALTH_URL/)
+  assert.match(healthcheck, /docker compose ps/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /supabase-pg_dumpall\.sql/)
+  assert.match(backup, /supabase-\$dir\.tar\.gz/)
+  assert.match(backup, /pgsodium_root\.key/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /supabase-pg_dumpall\.sql/)
+  assert.match(restore, /supabase_db-config/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "supabase"/)
+  assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
 })
 
 test('generated operation scripts are valid shell syntax', async () => {
