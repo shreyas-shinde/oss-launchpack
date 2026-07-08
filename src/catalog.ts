@@ -1221,6 +1221,238 @@ esac
   ],
 }
 
+const dify: Launchpack = {
+  id: 'dify',
+  name: 'Dify',
+  category: 'AI application platform',
+  upstream: 'https://github.com/langgenius/dify/tree/main/docker',
+  defaultPort: 80,
+  supportModel: 'upstream-agreement-required',
+  whyNow:
+    'Dify is a high-demand agentic AI application platform, but self-hosting means operating API services, workers, plugin daemon, web, Postgres, Redis, Weaviate, sandboxing, SSRF proxying, nginx, secrets, uploads, and model-provider configuration.',
+  operationsFit:
+    'Dify operations need an official-stack wrapper, release pinning, secret rotation checklist, backup boundaries for Postgres/storage/plugins/vector data, and clear license boundaries around multi-tenant use.',
+  licenseNote:
+    'Dify uses a modified Apache-2.0 license. Commercial use is allowed, but operating a multi-tenant environment requires written Dify authorization; frontend logo/copyright notices must not be removed or modified. Review the upstream LICENSE before offering Dify to multiple tenants.',
+  operations: {
+    healthcheckUrl: 'http://localhost',
+    backupTargets: [
+      {
+        type: 'command',
+        id: 'dify-postgres-logical',
+        description:
+          'Logical pg_dumpall export of the official Dify Postgres service, including the main and plugin databases.',
+        backupCommands: [
+          'DIFY_PROJECT_DIR="${DIFY_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$DIFY_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before backing up Dify." >&2; exit 1; fi',
+          'if [ -f "$DIFY_PROJECT_DIR/.env" ]; then set -a; . "$DIFY_PROJECT_DIR/.env"; set +a; fi',
+          '(cd "$DIFY_PROJECT_DIR" && docker compose exec -T db_postgres sh -c "PGPASSWORD=\\"${DB_PASSWORD:-difyai123456}\\" pg_dumpall -U \\"${DB_USERNAME:-postgres}\\"") > "$BACKUP_DIR_ABS/dify-pg_dumpall.sql"',
+        ],
+        restoreCommands: [
+          'DIFY_PROJECT_DIR="${DIFY_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$DIFY_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before restoring Dify." >&2; exit 1; fi',
+          'if [ ! -f "$BACKUP_DIR_ABS/dify-pg_dumpall.sql" ]; then echo "Missing dump: $BACKUP_DIR_ABS/dify-pg_dumpall.sql" >&2; exit 1; fi',
+          'if [ -f "$DIFY_PROJECT_DIR/.env" ]; then set -a; . "$DIFY_PROJECT_DIR/.env"; set +a; fi',
+          '(cd "$DIFY_PROJECT_DIR" && docker compose exec -T db_postgres sh -c "PGPASSWORD=\\"${DB_PASSWORD:-difyai123456}\\" psql -U \\"${DB_USERNAME:-postgres}\\" -v ON_ERROR_STOP=1") < "$BACKUP_DIR_ABS/dify-pg_dumpall.sql"',
+        ],
+      },
+      {
+        type: 'command',
+        id: 'dify-env-config',
+        description:
+          'Official Docker .env, optional envs/*.env overrides, nginx SSL/config, and source ref marker.',
+        backupCommands: [
+          'DIFY_PROJECT_DIR="${DIFY_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$DIFY_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before backing up Dify." >&2; exit 1; fi',
+          'tar -C "$DIFY_PROJECT_DIR" -czf "$BACKUP_DIR_ABS/dify-config.tar.gz" --exclude=".git" .env envs nginx/ssl nginx/conf.d 2>/dev/null || true',
+          'if [ -f "$DIFY_PROJECT_DIR/.dify-source-ref" ]; then cp "$DIFY_PROJECT_DIR/.dify-source-ref" "$BACKUP_DIR_ABS/dify-source-ref.txt"; fi',
+          'if [ -f "$BACKUP_DIR_ABS/dify-config.tar.gz" ]; then chmod 600 "$BACKUP_DIR_ABS/dify-config.tar.gz"; fi',
+        ],
+        restoreCommands: [
+          'DIFY_PROJECT_DIR="${DIFY_PROJECT_DIR:-self-hosted}"',
+          'mkdir -p "$DIFY_PROJECT_DIR"',
+          'if [ -f "$BACKUP_DIR_ABS/dify-config.tar.gz" ]; then tar -C "$DIFY_PROJECT_DIR" -xzf "$BACKUP_DIR_ABS/dify-config.tar.gz"; fi',
+          'if [ -f "$BACKUP_DIR_ABS/dify-source-ref.txt" ]; then cp "$BACKUP_DIR_ABS/dify-source-ref.txt" "$DIFY_PROJECT_DIR/.dify-source-ref"; fi',
+        ],
+      },
+      {
+        type: 'command',
+        id: 'dify-local-state',
+        description:
+          'Local app uploads/storage, plugin daemon storage, Redis data, and vector-store directories when local backends are used.',
+        backupCommands: [
+          'DIFY_PROJECT_DIR="${DIFY_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$DIFY_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before backing up Dify." >&2; exit 1; fi',
+          'state_paths="volumes/app/storage volumes/plugin_daemon volumes/redis/data volumes/weaviate volumes/qdrant volumes/pgvector/data volumes/pgvecto_rs/data volumes/chroma volumes/milvus volumes/opensearch/data volumes/elasticsearch/data volumes/minio/data"',
+          'existing_paths=""',
+          'for path in $state_paths; do if [ -e "$DIFY_PROJECT_DIR/$path" ]; then existing_paths="$existing_paths $path"; fi; done',
+          'if [ -n "$existing_paths" ]; then tar -C "$DIFY_PROJECT_DIR" -czf "$BACKUP_DIR_ABS/dify-local-state.tar.gz" $existing_paths; fi',
+        ],
+        restoreCommands: [
+          'DIFY_PROJECT_DIR="${DIFY_PROJECT_DIR:-self-hosted}"',
+          'mkdir -p "$DIFY_PROJECT_DIR"',
+          'if [ -f "$BACKUP_DIR_ABS/dify-local-state.tar.gz" ]; then tar -C "$DIFY_PROJECT_DIR" -xzf "$BACKUP_DIR_ABS/dify-local-state.tar.gz"; fi',
+        ],
+      },
+    ],
+    upgrade: {
+      command: './ops/install-official.sh && (cd self-hosted && docker compose down && docker compose up -d)',
+      notes: [
+        'Use the official release notes for the target DIFY_SOURCE_REF; Dify upgrade steps can vary between releases.',
+        'Back up Postgres, .env, env override files, app storage, plugin storage, Redis, and vector-store directories before upgrading.',
+        'After upgrading, compare .env.example and envs/*.env.example with local .env/envs/*.env files for new or changed variables.',
+        'Keep SECRET_KEY stable after first launch; changing it can invalidate sessions, file URLs, and encrypted OAuth/plugin credentials.',
+        'Pin DIFY_SOURCE_REF to a tested release for production-like installs instead of leaving it on latest.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: '.env.example',
+      content: `DIFY_SOURCE_REF=latest
+DIFY_PROJECT_DIR=self-hosted
+DIFY_UPSTREAM_DIR=.upstream/dify
+DIFY_HEALTH_URL=http://localhost
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Dify Launchpack
+
+This pack wraps Dify's official \`langgenius/dify/docker\` deployment instead of
+copying the generated Compose stack. Dify's Docker files are release-coupled
+and generated from upstream templates, so this launchpack keeps them intact and
+adds an inspectable operations manifest, install script, health check, and
+backup/restore surface around them.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+./ops/install-official.sh
+cd self-hosted
+# Edit .env before first start: SECRET_KEY, DB/Redis passwords, URLs, storage, model providers, and OAuth.
+docker compose config >/dev/null
+docker compose up -d
+docker compose ps
+cd ..
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost/install for local initialization, or the URL configured
+for your server.
+
+## Operations
+
+- Dify requires Docker Compose 2.24.0+ and enough memory for API, workers, plugin daemon, Postgres, Redis, Weaviate, nginx, sandbox, and SSRF proxy services.
+- Default Docker startup uses local Postgres, Redis, Weaviate, app storage, and plugin storage under \`self-hosted/volumes\`.
+- Generate and set a strong \`SECRET_KEY\` before first launch. Changing it later can invalidate sessions, file URLs, and encrypted OAuth/plugin credentials.
+- Back up Postgres, \`self-hosted/.env\`, optional \`envs/*.env\` overrides, app storage, plugin storage, Redis, and vector-store directories before upgrades.
+- Review Dify release notes before changing \`DIFY_SOURCE_REF\`; upgrade steps can vary between releases.
+- Review the modified Apache-2.0 license before operating Dify for multiple tenants. Written Dify authorization is required for multi-tenant environments.
+`,
+    },
+    {
+      path: 'ops/install-official.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+DIFY_SOURCE_REF="\${DIFY_SOURCE_REF:-latest}"
+DIFY_PROJECT_DIR="\${DIFY_PROJECT_DIR:-self-hosted}"
+DIFY_UPSTREAM_DIR="\${DIFY_UPSTREAM_DIR:-.upstream/dify}"
+ROOT_DIR="$(pwd)"
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "git is required to install the official Dify Docker setup." >&2
+  exit 1
+fi
+
+if [ "$DIFY_SOURCE_REF" = "latest" ] && ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required to resolve the latest Dify release. Set DIFY_SOURCE_REF to a release tag to avoid this." >&2
+  exit 1
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "Docker Compose 2.24.0 or later is required before installing Dify self-hosted." >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$DIFY_UPSTREAM_DIR")"
+
+if [ ! -d "$DIFY_UPSTREAM_DIR/.git" ]; then
+  git clone --filter=blob:none --sparse https://github.com/langgenius/dify.git "$DIFY_UPSTREAM_DIR"
+fi
+
+if [ "$DIFY_SOURCE_REF" = "latest" ]; then
+  VERSION_URL="$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/langgenius/dify/releases/latest)"
+  DIFY_SOURCE_REF="\${VERSION_URL##*/}"
+fi
+
+cd "$DIFY_UPSTREAM_DIR"
+git fetch --depth 1 origin "$DIFY_SOURCE_REF"
+git checkout --detach FETCH_HEAD
+git sparse-checkout init --cone >/dev/null 2>&1 || true
+git sparse-checkout set docker
+cd "$ROOT_DIR"
+
+mkdir -p "$DIFY_PROJECT_DIR"
+cp -R "$DIFY_UPSTREAM_DIR/docker/." "$DIFY_PROJECT_DIR/"
+printf '%s\\n' "$DIFY_SOURCE_REF" > "$DIFY_PROJECT_DIR/.dify-source-ref"
+
+if [ ! -f "$DIFY_PROJECT_DIR/.env" ]; then
+  cp "$DIFY_PROJECT_DIR/.env.example" "$DIFY_PROJECT_DIR/.env"
+fi
+
+echo "Official Dify Docker setup $DIFY_SOURCE_REF installed in $DIFY_PROJECT_DIR"
+echo "Next: cd $DIFY_PROJECT_DIR && edit .env && docker compose up -d"
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+DIFY_PROJECT_DIR="\${DIFY_PROJECT_DIR:-self-hosted}"
+APP_URL="\${APP_URL:-\${DIFY_HEALTH_URL:-http://localhost}}"
+
+if [ ! -d "$DIFY_PROJECT_DIR" ]; then
+  echo "Run ./ops/install-official.sh before checking Dify." >&2
+  exit 1
+fi
+
+status="$(curl -sS -o /dev/null -w '%{http_code}' "$APP_URL" || true)"
+
+case "$status" in
+  2*|3*|401|403|404)
+    echo "Dify gateway is reachable at $APP_URL with HTTP $status"
+    ;;
+  *)
+    echo "Dify gateway check failed at $APP_URL with HTTP $status" >&2
+    (cd "$DIFY_PROJECT_DIR" && docker compose ps)
+    exit 1
+    ;;
+esac
+
+(cd "$DIFY_PROJECT_DIR" && docker compose ps)
+`,
+    },
+  ],
+}
+
 const homepage: Launchpack = {
   id: 'homepage',
   name: 'Homepage',
@@ -1354,6 +1586,7 @@ export const launchpacks = [
   posthog,
   outline,
   supabase,
+  dify,
   homepage,
 ] as const satisfies readonly Launchpack[]
 

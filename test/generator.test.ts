@@ -21,6 +21,7 @@ test('catalog exposes the operations-ready wedges', () => {
     'posthog',
     'outline',
     'supabase',
+    'dify',
     'homepage',
   ])
   assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
@@ -203,6 +204,47 @@ test('generates a Supabase wrapper around the official Docker setup', async () =
   const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
   assert.match(manifest, /"pack": "supabase"/)
   assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
+})
+
+test('generates a Dify wrapper around the official Docker setup', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('dify', dir)
+
+  assert.equal(result.files.some((file) => file.endsWith('compose.yaml')), false)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /wraps Dify's official `langgenius\/dify\/docker` deployment/)
+  assert.match(readme, /multi-tenant environments/)
+  assert.match(readme, /plugin storage/)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /DIFY_SOURCE_REF=latest/)
+  assert.match(env, /DIFY_PROJECT_DIR=self-hosted/)
+
+  const install = await readFile(path.join(dir, 'ops/install-official.sh'), 'utf8')
+  assert.match(install, /git clone --filter=blob:none --sparse/)
+  assert.match(install, /langgenius\/dify\.git/)
+  assert.match(install, /git sparse-checkout set docker/)
+  assert.match(install, /releases\/latest/)
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /DIFY_HEALTH_URL/)
+  assert.match(healthcheck, /docker compose ps/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /dify-pg_dumpall\.sql/)
+  assert.match(backup, /dify-config\.tar\.gz/)
+  assert.match(backup, /dify-local-state\.tar\.gz/)
+  assert.match(backup, /volumes\/plugin_daemon/)
+  assert.match(backup, /volumes\/weaviate/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /dify-pg_dumpall\.sql/)
+  assert.match(restore, /dify-local-state\.tar\.gz/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "dify"/)
+  assert.match(manifest, /"supportModel": "upstream-agreement-required"/)
 })
 
 test('generated operation scripts are valid shell syntax', async () => {

@@ -33,6 +33,9 @@
     "backend",
     "postgres",
     "supabase",
+    "ai-agents",
+    "dify",
+    "llmops",
     "oss"
   ],
   "author": "Shreyas Shinde",

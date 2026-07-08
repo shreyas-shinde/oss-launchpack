@@ -50,9 +50,16 @@ Examples:
 }
 
 function printList(): void {
-  for (const pack of listLaunchpacks()) {
+  const packs = listLaunchpacks()
+  const idWidth = Math.max(...packs.map((pack) => pack.id.length), 'Pack'.length)
+  const nameWidth = Math.max(...packs.map((pack) => pack.name.length), 'Name'.length)
+  const categoryWidth = Math.max(...packs.map((pack) => pack.category.length), 'Category'.length)
+
+  for (const pack of packs) {
     console.log(
-      `${pack.id.padEnd(12)} ${pack.name.padEnd(14)} ${pack.category.padEnd(20)} ${pack.supportModel}`,
+      `${pack.id.padEnd(idWidth)} ${pack.name.padEnd(nameWidth)} ${pack.category.padEnd(
+        categoryWidth,
+      )} ${pack.supportModel}`,
     )
   }
 }

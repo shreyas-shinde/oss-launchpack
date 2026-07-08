@@ -49,6 +49,7 @@ multi-customer use.
 | `posthog` | Product analytics | `customer-owned-only` | <https://github.com/PostHog/posthog> | Customer-owned hobby deployment, backups, upgrade support |
 | `outline` | Team knowledge | `customer-owned-only` | <https://github.com/outline/outline> | Customer-owned team wiki, SSO/OIDC setup, backups |
 | `supabase` | Backend platform | `permissive-hosting-fit` | <https://github.com/supabase/supabase/tree/master/docker> | Official Docker stack wrapper, Postgres/storage/functions backup boundaries |
+| `dify` | AI application platform | `upstream-agreement-required` | <https://github.com/langgenius/dify/tree/main/docker> | Official Docker stack wrapper, Postgres/storage/plugin/vector backup boundaries |
 | `homepage` | Dashboard | `review-required` | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
 
 Support model meanings:
@@ -106,7 +107,7 @@ Generated packs include:
 2. Validate backup and restore flows on clean VPS hosts.
 3. Document production hardening guides for domains, TLS, updates, and monitoring.
 4. Add pack metadata for resource sizing and upgrade notes.
-5. Add a flagship operations pack for Dify.
+5. Add flagship operations packs for developer infrastructure and AI workflow platforms.
 
 ## Development
 
