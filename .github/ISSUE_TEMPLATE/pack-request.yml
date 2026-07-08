@@ -1,0 +1,27 @@
+name: Launchpack request
+description: Request a new open-source launchpack.
+title: "Launchpack request: "
+labels:
+  - launchpack-request
+body:
+  - type: input
+    id: upstream
+    attributes:
+      label: Upstream project
+      placeholder: "https://github.com/example/project"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this pack matters
+      description: Who wants to self-host it, and what makes deployment hard?
+    validations:
+      required: true
+  - type: textarea
+    id: deployment
+    attributes:
+      label: Known deployment requirements
+      placeholder: "Databases, queues, storage, GPU, domains, OAuth, backups, ports."
+    validations:
+      required: false
