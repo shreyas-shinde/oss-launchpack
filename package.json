@@ -1,6 +1,6 @@
 {
   "name": "oss-launchpack",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Generate operations-ready launchpacks for popular self-hosted OSS apps.",
   "type": "module",
   "bin": {
