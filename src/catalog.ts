@@ -1488,6 +1488,139 @@ echo "Qdrant is reachable at $APP_URL"
   ],
 }
 
+const meilisearch: Launchpack = {
+  id: 'meilisearch',
+  name: 'Meilisearch',
+  category: 'Search',
+  upstream: 'https://github.com/meilisearch/meilisearch',
+  defaultPort: 7700,
+  supportModel: 'review-required',
+  whyNow:
+    'Search is a core feature in self-hosted apps, and Meilisearch is a popular search engine with a simple Docker path but important operator details around master keys, persistent indexes, dumps, snapshots, and upgrades.',
+  operationsFit:
+    'Meilisearch operations need a production master key, persistent /meili_data storage, health checks, backup/restore validation, and upgrade notes that separate volume restores from dump or snapshot migrations.',
+  licenseNote:
+    'Meilisearch includes Community Edition code under MIT and Enterprise Edition code under Business Source License 1.1. Keep the support model conservative, preserve upstream notices, and do not present this launchpack as Meilisearch Cloud or official Meilisearch support.',
+  sizing: {
+    tier: 'single-node',
+    minimumCpuCores: 2,
+    minimumMemoryGb: 2,
+    storage:
+      '10 GB+ for small search workloads; plan disk for indexes, task queue history, dumps, snapshots, and temporary staging during dump/snapshot creation.',
+    scaling:
+      'Start as a single-node search service. For high availability, managed cloud, sharding, or replication, follow upstream guidance instead of extending this starter pack casually.',
+    notes: [
+      'Production mode requires a master key of at least 16 bytes.',
+      'Dumps are intended for migrations between different Meilisearch versions; snapshots are best suited for backup or same-version migrations.',
+      'The generated backup is a stopped-service volume restore boundary for /meili_data, not a live-consistent database snapshot.',
+    ],
+  },
+  operations: {
+    healthcheckUrl: 'http://localhost:7700/health',
+    backupTargets: [
+      {
+        type: 'mount',
+        id: 'meilisearch-data',
+        service: 'meilisearch',
+        path: '/meili_data',
+        description:
+          'Meilisearch database files, indexes, task queue state, generated dumps, and snapshots.',
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: [
+        'Pin MEILISEARCH_VERSION in production so upgrades are intentional.',
+        'Back up /meili_data and consider creating an upstream dump or snapshot before changing versions.',
+        'Use dumps for migrations between different Meilisearch versions; use snapshots for same-version backup or migration paths.',
+        'Keep MEILI_MASTER_KEY stable. Rotating it changes API access and should be handled deliberately.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: 'compose.yaml',
+      content: `services:
+  meilisearch:
+    image: getmeili/meilisearch:\${MEILISEARCH_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "\${MEILISEARCH_PORT:-7700}:7700"
+    environment:
+      MEILI_ENV: "\${MEILI_ENV:-production}"
+      MEILI_MASTER_KEY: "\${MEILI_MASTER_KEY:?Set MEILI_MASTER_KEY in .env}"
+      MEILI_DB_PATH: /meili_data/data.ms
+      MEILI_DUMP_DIR: /meili_data/dumps
+      MEILI_SNAPSHOT_DIR: /meili_data/snapshots
+      MEILI_SCHEDULE_SNAPSHOT: "\${MEILI_SCHEDULE_SNAPSHOT:-86400}"
+    volumes:
+      - meilisearch-data:/meili_data
+
+volumes:
+  meilisearch-data:
+`,
+    },
+    {
+      path: '.env.example',
+      content: `MEILISEARCH_VERSION=latest
+MEILISEARCH_PORT=7700
+MEILISEARCH_URL=http://localhost:7700
+MEILI_ENV=production
+MEILI_MASTER_KEY=replace-with-a-long-random-master-key
+MEILI_SCHEDULE_SNAPSHOT=86400
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Meilisearch Launchpack
+
+This pack runs the official Meilisearch Docker image with persistent
+\`/meili_data\` storage, production-mode master-key configuration, generated
+operations metadata, and explicit restore notes for self-hosted search.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+# Edit MEILI_MASTER_KEY before first start. It must be at least 16 bytes in production mode.
+docker compose up -d
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:7700 for the API. Most routes require
+\`Authorization: Bearer <MEILI_MASTER_KEY>\`.
+
+## Operations
+
+- Meilisearch includes MIT-licensed Community Edition code and Business Source License 1.1 Enterprise Edition code; review upstream terms before commercial use.
+- Meilisearch Cloud is the upstream managed path. Do not present this launchpack as Meilisearch Cloud or official Meilisearch support.
+- Persistent data is stored in \`meilisearch-data\` at \`/meili_data\`, including \`data.ms\`, dumps, and snapshots.
+- Dump and snapshot creation use temporary staging space. For large databases, configure \`TMPDIR\` deliberately on a volume with enough free space.
+- Keep \`MEILI_MASTER_KEY\` stable and secret. Production mode requires a key of at least 16 bytes.
+- Use upstream dumps for migrations between different Meilisearch versions and snapshots for backup or same-version migrations.
+- Stop writes before restoring the generated volume backup for production-like workloads.
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+APP_URL="\${APP_URL:-\${MEILISEARCH_URL:-http://localhost:7700}}"
+curl -fsS "$APP_URL/health" >/dev/null
+echo "Meilisearch is reachable at $APP_URL"
+`,
+    },
+  ],
+}
+
 const outline: Launchpack = {
   id: 'outline',
   name: 'Outline',
@@ -2369,6 +2502,7 @@ export const launchpacks = [
   grafana,
   clickhouse,
   qdrant,
+  meilisearch,
   outline,
   supabase,
   dify,

@@ -22,6 +22,7 @@ test('catalog exposes the operations-ready wedges', () => {
     'grafana',
     'clickhouse',
     'qdrant',
+    'meilisearch',
     'outline',
     'supabase',
     'dify',
@@ -80,6 +81,9 @@ test('contribution guide documents launchpack requirements', async () => {
   assert.match(guide, /scripts\/validate-qdrant-backup-restore\.sh/)
   assert.match(guide, /known vector point/)
   assert.match(guide, /KEEP_QDRANT_VALIDATION/)
+  assert.match(guide, /scripts\/validate-meilisearch-backup-restore\.sh/)
+  assert.match(guide, /known document\s+marker/)
+  assert.match(guide, /KEEP_MEILISEARCH_VALIDATION/)
 
   assert.match(issueTemplate, /Official deployment docs/)
   assert.match(issueTemplate, /Durable state and restore boundary/)
@@ -224,6 +228,21 @@ test('Qdrant backup restore validator is repeatable shell', async () => {
   assert.match(content, /qdrant-snapshots\.tar\.gz/)
   assert.match(content, /CONFIRM_RESTORE=yes/)
   assert.match(content, /KEEP_QDRANT_VALIDATION/)
+
+  const scriptStat = await stat(script)
+  assert.equal((scriptStat.mode & 0o111) > 0, true)
+})
+
+test('Meilisearch backup restore validator is repeatable shell', async () => {
+  const script = 'scripts/validate-meilisearch-backup-restore.sh'
+  await execFileAsync('sh', ['-n', script])
+
+  const content = await readFile(script, 'utf8')
+  assert.match(content, /MEILISEARCH_VALIDATION_PORT/)
+  assert.match(content, /oss_launchpack_validation/)
+  assert.match(content, /meilisearch-data\.tar\.gz/)
+  assert.match(content, /CONFIRM_RESTORE=yes/)
+  assert.match(content, /KEEP_MEILISEARCH_VALIDATION/)
 
   const scriptStat = await stat(script)
   assert.equal((scriptStat.mode & 0o111) > 0, true)
@@ -436,6 +455,50 @@ test('generates a Qdrant launchpack with durable storage and snapshots', async (
   assert.match(manifest, /"pack": "qdrant"/)
   assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
   assert.match(manifest, /"id": "qdrant-snapshots"/)
+})
+
+test('generates a Meilisearch launchpack with master-key and data backups', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('meilisearch', dir)
+
+  assert.equal(result.pack.id, 'meilisearch')
+
+  const compose = await readFile(path.join(dir, 'compose.yaml'), 'utf8')
+  assert.match(compose, /getmeili\/meilisearch:\$\{MEILISEARCH_VERSION:-latest\}/)
+  assert.match(compose, /\$\{MEILISEARCH_PORT:-7700\}:7700/)
+  assert.match(compose, /MEILI_ENV/)
+  assert.match(compose, /MEILI_MASTER_KEY/)
+  assert.match(compose, /MEILI_DB_PATH: \/meili_data\/data\.ms/)
+  assert.match(compose, /MEILI_DUMP_DIR: \/meili_data\/dumps/)
+  assert.match(compose, /MEILI_SNAPSHOT_DIR: \/meili_data\/snapshots/)
+  assert.match(compose, /meilisearch-data:\/meili_data/)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /MEILISEARCH_VERSION=latest/)
+  assert.match(env, /MEILISEARCH_URL=http:\/\/localhost:7700/)
+  assert.match(env, /MEILI_MASTER_KEY=replace-with-a-long-random-master-key/)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /Meilisearch Cloud/)
+  assert.match(readme, /Business Source License 1\.1/)
+  assert.match(readme, /Stop writes before restoring/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /backup_mount 'meilisearch' '\/meili_data' 'meilisearch-data\.tar\.gz'/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(
+    restore,
+    /restore_mount 'meilisearch' '\/meili_data' 'meilisearch-data\.tar\.gz'/,
+  )
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /\/health/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "meilisearch"/)
+  assert.match(manifest, /"supportModel": "review-required"/)
+  assert.match(manifest, /"id": "meilisearch-data"/)
 })
 
 test('generates an Outline launchpack with auth and durable storage guidance', async () => {

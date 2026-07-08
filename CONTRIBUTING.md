@@ -204,3 +204,18 @@ Set `QDRANT_VALIDATION_HTTP_PORT` and `QDRANT_VALIDATION_GRPC_PORT` to override
 the default test ports. Set `KEEP_QDRANT_VALIDATION=1` to leave the generated
 stack in place for manual inspection. Otherwise the script removes its
 containers and volumes before it exits.
+
+The Meilisearch smoke test generates `tmp/meilisearch`, starts the generated
+Compose pack on a test-only port with a test master key, writes a known document
+marker into an index, backs up `/meili_data`, deletes the index, restores the
+volume backup while Meilisearch is stopped, restarts Meilisearch, and verifies
+the document marker returns:
+
+```bash
+scripts/validate-meilisearch-backup-restore.sh
+```
+
+Set `MEILISEARCH_VALIDATION_PORT` or `MEILISEARCH_VALIDATION_MASTER_KEY` to
+override the defaults. Set `KEEP_MEILISEARCH_VALIDATION=1` to leave the
+generated stack in place for manual inspection. Otherwise the script removes
+its containers and volumes before it exits.

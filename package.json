@@ -36,6 +36,8 @@
     "qdrant",
     "vector-database",
     "rag",
+    "meilisearch",
+    "search",
     "ai-agents",
     "dify",
     "llmops",
