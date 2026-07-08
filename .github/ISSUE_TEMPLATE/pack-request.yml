@@ -11,6 +11,14 @@ body:
       placeholder: "https://github.com/example/project"
     validations:
       required: true
+  - type: input
+    id: official-deploy-docs
+    attributes:
+      label: Official deployment docs
+      description: Link to the upstream Docker, Compose, Helm, or self-hosting docs.
+      placeholder: "https://example.com/docs/self-hosting"
+    validations:
+      required: true
   - type: textarea
     id: why
     attributes:
@@ -19,9 +27,37 @@ body:
     validations:
       required: true
   - type: textarea
+    id: state
+    attributes:
+      label: Durable state and restore boundary
+      description: List databases, volumes, object storage, queues, snapshots, secrets, and any state that should not be backed up generically.
+      placeholder: "Postgres data, uploads volume, Redis queues, object storage, API keys, TLS certificates."
+    validations:
+      required: true
+  - type: dropdown
+    id: support-model
+    attributes:
+      label: Expected support model
+      description: Pick the safest initial support model based on upstream license, trademark, and hosted-use terms.
+      options:
+        - permissive-hosting-fit
+        - customer-owned-only
+        - upstream-agreement-required
+        - review-required
+    validations:
+      required: true
+  - type: textarea
     id: deployment
     attributes:
       label: Known deployment requirements
       placeholder: "Databases, queues, storage, GPU, domains, OAuth, backups, ports."
+    validations:
+      required: false
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation idea
+      description: How could a contributor prove backup and restore works with a small marker?
+      placeholder: "Create one record/file/collection, run backup, delete it, restore, verify the marker returns."
     validations:
       required: false

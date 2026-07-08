@@ -50,8 +50,12 @@ test('catalog exposes the operations-ready wedges', () => {
 test('contribution guide documents launchpack requirements', async () => {
   const guide = await readFile('CONTRIBUTING.md', 'utf8')
   const readme = await readFile('README.md', 'utf8')
+  const issueTemplate = await readFile('.github/ISSUE_TEMPLATE/pack-request.yml', 'utf8')
+  const pullRequestTemplate = await readFile('.github/PULL_REQUEST_TEMPLATE.md', 'utf8')
 
   assert.match(readme, /CONTRIBUTING\.md/)
+  assert.match(readme, /Contribute a Pack/)
+  assert.match(readme, /good first issue/)
   assert.match(guide, /supportModel/)
   assert.match(guide, /licenseNote/)
   assert.match(guide, /sizing/)
@@ -76,6 +80,17 @@ test('contribution guide documents launchpack requirements', async () => {
   assert.match(guide, /scripts\/validate-qdrant-backup-restore\.sh/)
   assert.match(guide, /known vector point/)
   assert.match(guide, /KEEP_QDRANT_VALIDATION/)
+
+  assert.match(issueTemplate, /Official deployment docs/)
+  assert.match(issueTemplate, /Durable state and restore boundary/)
+  assert.match(issueTemplate, /Expected support model/)
+  assert.match(issueTemplate, /Validation idea/)
+  assert.match(issueTemplate, /permissive-hosting-fit/)
+
+  assert.match(pullRequestTemplate, /upstream license/)
+  assert.match(pullRequestTemplate, /supportModel/)
+  assert.match(pullRequestTemplate, /marker-based validator/)
+  assert.match(pullRequestTemplate, /private revenue, acquisition, or customer-pipeline strategy/)
 })
 
 test('generates a launchpack without overwriting by default', async () => {

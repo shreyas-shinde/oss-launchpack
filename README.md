@@ -104,6 +104,15 @@ Generated packs include:
 - `ops/manifest.json`
 - `.launchpack.json`
 
+## Contribute a Pack
+
+Good launchpacks are more than Compose files. Each pack should name the upstream
+project, license/support boundary, sizing, health check, durable state, backup
+targets, restore caveats, and upgrade path.
+
+Start with a [launchpack request](./.github/ISSUE_TEMPLATE/pack-request.yml) or
+claim a `good first issue`, then follow [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## Roadmap
 
 1. Add more high-demand launchpacks.
