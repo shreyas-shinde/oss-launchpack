@@ -27,6 +27,7 @@ test('catalog exposes the operations-ready wedges', () => {
     'outline',
     'supabase',
     'dify',
+    'airbyte',
     'langfuse',
     'temporal',
     'keycloak',
@@ -680,6 +681,72 @@ test('generates a Dify wrapper around the official Docker setup', async () => {
   const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
   assert.match(manifest, /"pack": "dify"/)
   assert.match(manifest, /"supportModel": "upstream-agreement-required"/)
+})
+
+test('generates an Airbyte abctl and Helm operations wrapper', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('airbyte', dir)
+
+  assert.equal(result.files.some((file) => file.endsWith('compose.yaml')), false)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /AIRBYTE_PORT=8000/)
+  assert.match(env, /AIRBYTE_NAMESPACE=airbyte-abctl/)
+  assert.match(env, /AIRBYTE_CHART_VERSION=latest/)
+  assert.match(env, /AIRBYTE_INSTALL_ABCTL=false/)
+
+  const values = await readFile(path.join(dir, 'values.yaml'), 'utf8')
+  assert.match(values, /edition: community/)
+  assert.match(values, /airbyteUrl: http:\/\/localhost:8000/)
+  assert.match(values, /postgresql:/)
+  assert.match(values, /storage:/)
+  assert.match(values, /secretsManager:/)
+
+  const secret = await readFile(path.join(dir, 'secret.yaml.example'), 'utf8')
+  assert.match(secret, /airbyte-config-secrets/)
+  assert.match(secret, /database-password/)
+  assert.match(secret, /s3-secret-access-key/)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /legacy Docker Compose/)
+  assert.match(readme, /not Airbyte Cloud/)
+  assert.match(readme, /managed ELT\/ETL service/)
+  assert.match(readme, /external Postgres, object storage, and secret management/)
+
+  const install = await readFile(path.join(dir, 'ops/install-official.sh'), 'utf8')
+  assert.match(install, /abctl "\$@"/)
+  assert.match(install, /local install --no-browser --port "\$AIRBYTE_PORT"/)
+  assert.match(install, /--chart-version/)
+  assert.match(install, /--values/)
+  assert.match(install, /--secret/)
+  assert.match(install, /--low-resource-mode/)
+  assert.match(install, /--insecure-cookies/)
+  assert.match(install, /DIR_INSTALL/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /airbyte-postgres\.sql/)
+  assert.match(backup, /airbyte-minio\.tar\.gz/)
+  assert.match(backup, /airbyte-abctl-state\.tar\.gz/)
+  assert.match(backup, /airbyte-k8s-secrets\.yaml/)
+  assert.match(backup, /kubectl --kubeconfig "\$AIRBYTE_KUBECONFIG"/)
+  assert.match(backup, /pg_dump --clean --if-exists/)
+  assert.match(backup, /abctl images manifest/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /airbyte-postgres\.sql/)
+  assert.match(restore, /DROP SCHEMA IF EXISTS public CASCADE/)
+  assert.match(restore, /airbyte-minio\.tar\.gz/)
+  assert.match(restore, /AIRBYTE_RESTORE_ABCTL_STATE/)
+  assert.match(restore, /scale deployment -n "\$AIRBYTE_NAMESPACE" --all --replicas=0/)
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /abctl local status/)
+  assert.match(healthcheck, /AIRBYTE_HEALTH_URL/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "airbyte"/)
+  assert.match(manifest, /"supportModel": "customer-owned-only"/)
+  assert.match(manifest, /"id": "airbyte-abctl-state"/)
 })
 
 test('generates a Langfuse wrapper around the official Docker Compose setup', async () => {

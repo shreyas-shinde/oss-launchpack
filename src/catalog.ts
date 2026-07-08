@@ -2512,6 +2512,380 @@ esac
   ],
 }
 
+const airbyte: Launchpack = {
+  id: 'airbyte',
+  name: 'Airbyte',
+  category: 'Data integration',
+  upstream: 'https://docs.airbyte.com/platform/deploying-airbyte',
+  defaultPort: 8000,
+  supportModel: 'customer-owned-only',
+  whyNow:
+    'Airbyte is one of the highest-demand open data movement platforms, but self-managed deployment has shifted from legacy Docker Compose to Kubernetes, Helm, and abctl.',
+  operationsFit:
+    'Airbyte operations need an official abctl/Helm wrapper, chart-version pinning, database/object-storage/secrets guidance, and recovery scripts for the Kubernetes state boundary.',
+  licenseNote:
+    'Airbyte Core and connectors are primarily Elastic License 2.0, while Airbyte Protocol is MIT. Use this pack for customer-owned/internal deployments; do not sell Airbyte as a managed ELT/ETL service or directly expose Airbyte UI/API to customers without an Airbyte agreement.',
+  sizing: {
+    tier: 'official-stack-heavy',
+    minimumCpuCores: 4,
+    minimumMemoryGb: 16,
+    storage:
+      '100 GB+ for low-scale abctl installs; database records, job logs, connector state, workload output, and internal MinIO/object storage dominate growth.',
+    scaling:
+      'Use abctl for local or single-machine Docker-managed installs. For production, deploy the official Helm chart into Kubernetes with external Postgres, object storage, and a secrets manager.',
+    notes: [
+      'Airbyte runs on Kubernetes even when installed with abctl; abctl creates and manages a local kind cluster.',
+      'External Postgres and object storage are the cleanest production recovery boundary.',
+      'Connector secrets stored in the default database are plaintext; use a supported external secrets manager for production-like deployments.',
+      'Upgrades can temporarily turn off Airbyte and may touch connector versions; back up before changing chart versions.',
+    ],
+  },
+  operations: {
+    healthcheckUrl: 'http://localhost:8000',
+    backupTargets: [
+      {
+        type: 'command',
+        id: 'airbyte-abctl-state',
+        description:
+          'abctl-managed Kubernetes state: generated config, kubeconfig, internal Postgres logical dump, internal MinIO object data, and Kubernetes secrets/configmaps.',
+        backupCommands: [
+          'AIRBYTE_PROJECT_DIR="${AIRBYTE_PROJECT_DIR:-self-hosted}"',
+          'AIRBYTE_NAMESPACE="${AIRBYTE_NAMESPACE:-airbyte-abctl}"',
+          'AIRBYTE_KUBECONFIG="${AIRBYTE_KUBECONFIG:-$HOME/.airbyte/abctl/abctl.kubeconfig}"',
+          'AIRBYTE_DB_POD="${AIRBYTE_DB_POD:-airbyte-db-0}"',
+          'AIRBYTE_DB_NAME="${AIRBYTE_DB_NAME:-db-airbyte}"',
+          'AIRBYTE_DB_USER="${AIRBYTE_DB_USER:-airbyte}"',
+          'AIRBYTE_MINIO_POD="${AIRBYTE_MINIO_POD:-airbyte-minio-0}"',
+          'AIRBYTE_MINIO_DATA_PATH="${AIRBYTE_MINIO_DATA_PATH:-/data}"',
+          'if [ ! -f "$AIRBYTE_KUBECONFIG" ]; then echo "Missing abctl kubeconfig: $AIRBYTE_KUBECONFIG. Run ./ops/install-official.sh first." >&2; exit 1; fi',
+          'if [ -f .env ]; then cp .env "$BACKUP_DIR_ABS/airbyte.env"; chmod 600 "$BACKUP_DIR_ABS/airbyte.env"; fi',
+          'config_paths=""',
+          'for path in "$AIRBYTE_PROJECT_DIR" values.yaml secret.yaml secret.yaml.example; do if [ -e "$path" ]; then config_paths="$config_paths $path"; fi; done',
+          'if [ -n "$config_paths" ]; then tar -czf "$BACKUP_DIR_ABS/airbyte-launchpack-config.tar.gz" $config_paths; chmod 600 "$BACKUP_DIR_ABS/airbyte-launchpack-config.tar.gz"; fi',
+          'if [ -d "$HOME/.airbyte/abctl" ]; then tar -C "$HOME/.airbyte" -czf "$BACKUP_DIR_ABS/airbyte-abctl-state.tar.gz" abctl; chmod 600 "$BACKUP_DIR_ABS/airbyte-abctl-state.tar.gz"; fi',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" get secrets -n "$AIRBYTE_NAMESPACE" -o yaml > "$BACKUP_DIR_ABS/airbyte-k8s-secrets.yaml"',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" get configmaps -n "$AIRBYTE_NAMESPACE" -o yaml > "$BACKUP_DIR_ABS/airbyte-k8s-configmaps.yaml"',
+          'chmod 600 "$BACKUP_DIR_ABS/airbyte-k8s-secrets.yaml" "$BACKUP_DIR_ABS/airbyte-k8s-configmaps.yaml"',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" exec -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_DB_POD" -- sh -c "pg_dump --clean --if-exists -U \\"$AIRBYTE_DB_USER\\" \\"$AIRBYTE_DB_NAME\\" > /tmp/airbyte-launchpack-postgres.sql"',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" cp -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_DB_POD:/tmp/airbyte-launchpack-postgres.sql" "$BACKUP_DIR_ABS/airbyte-postgres.sql"',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" exec -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_DB_POD" -- rm -f /tmp/airbyte-launchpack-postgres.sql',
+          'if kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" get pod -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_MINIO_POD" >/dev/null 2>&1; then kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" exec -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_MINIO_POD" -- sh -c "tar -C \\"$AIRBYTE_MINIO_DATA_PATH\\" -czf /tmp/airbyte-launchpack-minio.tar.gz ."; kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" cp -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_MINIO_POD:/tmp/airbyte-launchpack-minio.tar.gz" "$BACKUP_DIR_ABS/airbyte-minio.tar.gz"; kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" exec -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_MINIO_POD" -- rm -f /tmp/airbyte-launchpack-minio.tar.gz; else echo "No internal MinIO pod found; verify external object storage backup separately." > "$BACKUP_DIR_ABS/airbyte-external-storage-note.txt"; fi',
+          'if command -v abctl >/dev/null 2>&1; then abctl images manifest > "$BACKUP_DIR_ABS/airbyte-images-manifest.txt" || true; fi',
+        ],
+        restoreCommands: [
+          'AIRBYTE_PROJECT_DIR="${AIRBYTE_PROJECT_DIR:-self-hosted}"',
+          'AIRBYTE_NAMESPACE="${AIRBYTE_NAMESPACE:-airbyte-abctl}"',
+          'AIRBYTE_KUBECONFIG="${AIRBYTE_KUBECONFIG:-$HOME/.airbyte/abctl/abctl.kubeconfig}"',
+          'AIRBYTE_DB_POD="${AIRBYTE_DB_POD:-airbyte-db-0}"',
+          'AIRBYTE_DB_NAME="${AIRBYTE_DB_NAME:-db-airbyte}"',
+          'AIRBYTE_DB_USER="${AIRBYTE_DB_USER:-airbyte}"',
+          'AIRBYTE_MINIO_POD="${AIRBYTE_MINIO_POD:-airbyte-minio-0}"',
+          'AIRBYTE_MINIO_DATA_PATH="${AIRBYTE_MINIO_DATA_PATH:-/data}"',
+          'if [ ! -f "$BACKUP_DIR_ABS/airbyte-postgres.sql" ]; then echo "Missing dump: $BACKUP_DIR_ABS/airbyte-postgres.sql" >&2; exit 1; fi',
+          'if [ -f "$BACKUP_DIR_ABS/airbyte-launchpack-config.tar.gz" ]; then tar -xzf "$BACKUP_DIR_ABS/airbyte-launchpack-config.tar.gz"; fi',
+          'if [ -f "$BACKUP_DIR_ABS/airbyte.env" ]; then cp "$BACKUP_DIR_ABS/airbyte.env" .env; chmod 600 .env; fi',
+          'if [ "${AIRBYTE_RESTORE_ABCTL_STATE:-}" = "yes" ] && [ -f "$BACKUP_DIR_ABS/airbyte-abctl-state.tar.gz" ]; then mkdir -p "$HOME/.airbyte"; tar -C "$HOME/.airbyte" -xzf "$BACKUP_DIR_ABS/airbyte-abctl-state.tar.gz"; fi',
+          'if [ ! -f "$AIRBYTE_KUBECONFIG" ]; then echo "Missing abctl kubeconfig: $AIRBYTE_KUBECONFIG. Reinstall Airbyte with ./ops/install-official.sh before restoring." >&2; exit 1; fi',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" scale deployment -n "$AIRBYTE_NAMESPACE" --all --replicas=0 || true',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" cp -n "$AIRBYTE_NAMESPACE" "$BACKUP_DIR_ABS/airbyte-postgres.sql" "$AIRBYTE_DB_POD:/tmp/airbyte-launchpack-postgres.sql"',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" exec -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_DB_POD" -- sh -c "psql -U \\"$AIRBYTE_DB_USER\\" -d \\"$AIRBYTE_DB_NAME\\" -v ON_ERROR_STOP=1 -c \\"DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;\\""',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" exec -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_DB_POD" -- sh -c "psql -U \\"$AIRBYTE_DB_USER\\" -d \\"$AIRBYTE_DB_NAME\\" -v ON_ERROR_STOP=1 < /tmp/airbyte-launchpack-postgres.sql"',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" exec -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_DB_POD" -- rm -f /tmp/airbyte-launchpack-postgres.sql',
+          'if [ -f "$BACKUP_DIR_ABS/airbyte-minio.tar.gz" ] && kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" get pod -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_MINIO_POD" >/dev/null 2>&1; then kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" cp -n "$AIRBYTE_NAMESPACE" "$BACKUP_DIR_ABS/airbyte-minio.tar.gz" "$AIRBYTE_MINIO_POD:/tmp/airbyte-launchpack-minio.tar.gz"; kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" exec -n "$AIRBYTE_NAMESPACE" "$AIRBYTE_MINIO_POD" -- sh -c "find \\"$AIRBYTE_MINIO_DATA_PATH\\" -mindepth 1 -maxdepth 1 -exec rm -rf {} +; tar -C \\"$AIRBYTE_MINIO_DATA_PATH\\" -xzf /tmp/airbyte-launchpack-minio.tar.gz; rm -f /tmp/airbyte-launchpack-minio.tar.gz"; fi',
+          'kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" scale deployment -n "$AIRBYTE_NAMESPACE" --all --replicas=1 || true',
+          'if command -v abctl >/dev/null 2>&1; then abctl local status || true; fi',
+        ],
+      },
+    ],
+    upgrade: {
+      command: './ops/install-official.sh',
+      notes: [
+        'For abctl-managed installs, re-run abctl local install through ./ops/install-official.sh to upgrade Airbyte.',
+        'Back up internal Postgres, internal MinIO/object state, Kubernetes secrets/configmaps, and ~/.airbyte/abctl before upgrading.',
+        'Pin AIRBYTE_CHART_VERSION to a tested Helm chart version for production-like deployments.',
+        'For Helm-managed production deployments, upgrade with helm upgrade using the reviewed values.yaml and the target chart version.',
+        'Prefer external Postgres, external object storage, and external secret management before any serious production workload.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: '.env.example',
+      content: `AIRBYTE_HOST=localhost
+AIRBYTE_PORT=8000
+AIRBYTE_HEALTH_URL=http://localhost:8000
+AIRBYTE_PUBLIC_URL=http://localhost:8000
+
+AIRBYTE_PROJECT_DIR=self-hosted
+AIRBYTE_NAMESPACE=airbyte-abctl
+AIRBYTE_KUBECONFIG=
+AIRBYTE_CHART_VERSION=latest
+AIRBYTE_VALUES_FILE=values.yaml
+AIRBYTE_SECRET_FILE=secret.yaml
+AIRBYTE_LOW_RESOURCE_MODE=false
+AIRBYTE_INSECURE_COOKIES=false
+AIRBYTE_INSTALL_ABCTL=false
+AIRBYTE_ABCTL_INSTALL_DIR=.tools/bin
+
+AIRBYTE_DB_POD=airbyte-db-0
+AIRBYTE_DB_NAME=db-airbyte
+AIRBYTE_DB_USER=airbyte
+AIRBYTE_MINIO_POD=airbyte-minio-0
+AIRBYTE_MINIO_DATA_PATH=/data
+`,
+    },
+    {
+      path: 'values.yaml',
+      content: `# Airbyte Helm chart V2 values for a local or VM install.
+# For production, review the official deployment docs and configure external
+# Postgres, object storage, secret management, ingress, and resource sizing.
+global:
+  edition: community
+  airbyteUrl: http://localhost:8000
+
+postgresql:
+  enabled: true
+
+ingress:
+  enabled: false
+
+# Production examples to adapt:
+#
+# postgresql:
+#   enabled: false
+# global:
+#   database:
+#     type: external
+#     secretName: airbyte-config-secrets
+#     host: ""
+#     port: 5432
+#     name: ""
+#     userSecretKey: database-user
+#     passwordSecretKey: database-password
+#   storage:
+#     type: S3
+#     secretName: airbyte-config-secrets
+#     bucket:
+#       log: airbyte-bucket
+#       state: airbyte-bucket
+#       workloadOutput: airbyte-bucket
+#       activityPayload: airbyte-bucket
+#     s3:
+#       region: us-east-1
+#       authenticationType: instanceProfile
+#   secretsManager:
+#     enabled: true
+#     type: AWS_SECRET_MANAGER
+#     secretName: airbyte-config-secrets
+#     awsSecretManager:
+#       region: us-east-1
+#       authenticationType: instanceProfile
+`,
+    },
+    {
+      path: 'secret.yaml.example',
+      content: `apiVersion: v1
+kind: Secret
+metadata:
+  name: airbyte-config-secrets
+type: Opaque
+stringData:
+  database-user: ""
+  database-password: ""
+  s3-access-key-id: ""
+  s3-secret-access-key: ""
+  aws-secret-manager-access-key-id: ""
+  aws-secret-manager-secret-access-key: ""
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Airbyte Launchpack
+
+This pack wraps Airbyte's current self-managed path instead of reviving the
+legacy Docker Compose deployment. Airbyte runs on Kubernetes. For a single
+machine, \`abctl\` creates a local kind cluster and installs Airbyte with Helm.
+For production, use the official Helm chart in your Kubernetes cluster with
+external Postgres, object storage, and secret management.
+
+## Start with abctl
+
+\`\`\`bash
+cp .env.example .env
+# Optional: set AIRBYTE_INSTALL_ABCTL=true if abctl is not already installed.
+./ops/install-official.sh
+./ops/healthcheck.sh
+abctl local credentials
+\`\`\`
+
+Open http://localhost:8000, or the host and port configured in \`.env\`.
+
+## Production Helm Direction
+
+\`\`\`bash
+helm repo add airbyte https://airbytehq.github.io/charts
+helm repo update
+kubectl create namespace airbyte
+helm install airbyte airbyte/airbyte --namespace airbyte --values ./values.yaml
+\`\`\`
+
+Use \`secret.yaml.example\` as a starting point only. Create real Kubernetes
+secrets with your cloud or cluster secret-management workflow.
+
+## Operations
+
+- This is an unofficial customer-owned deployment pack. It is not Airbyte Cloud, Airbyte Enterprise, Airbyte Agents, or official Airbyte support.
+- Airbyte is primarily ELv2. Do not sell Airbyte as a managed ELT/ETL service or expose Airbyte's UI/API directly to customers without an Airbyte agreement.
+- \`abctl\` is for machines with Docker but without an existing Kubernetes cluster. If you already have Kubernetes, deploy with Helm directly.
+- Airbyte stores config, connections, job metadata, connector state, and auth data in Postgres.
+- Default connector secrets can live in the Airbyte database in plaintext. Configure AWS Secrets Manager, Google Secret Manager, Azure Key Vault, or HashiCorp Vault for production-like use.
+- Default abctl installs use internal MinIO for job logs, state, and workload output. Production deployments should use S3, GCS, Azure Blob, or compatible object storage.
+- Back up Postgres, object storage, Kubernetes secrets/configmaps, generated values/secrets, and \`~/.airbyte/abctl\` before upgrades.
+- Restore is destructive. Stop Airbyte traffic before restoring Postgres or internal MinIO state.
+- Pin \`AIRBYTE_CHART_VERSION\` to a tested Helm chart version for repeatable upgrades.
+`,
+    },
+    {
+      path: 'ops/install-official.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+AIRBYTE_HOST="\${AIRBYTE_HOST:-localhost}"
+AIRBYTE_PORT="\${AIRBYTE_PORT:-8000}"
+AIRBYTE_PROJECT_DIR="\${AIRBYTE_PROJECT_DIR:-self-hosted}"
+AIRBYTE_CHART_VERSION="\${AIRBYTE_CHART_VERSION:-latest}"
+AIRBYTE_VALUES_FILE="\${AIRBYTE_VALUES_FILE:-values.yaml}"
+AIRBYTE_SECRET_FILE="\${AIRBYTE_SECRET_FILE:-secret.yaml}"
+AIRBYTE_LOW_RESOURCE_MODE="\${AIRBYTE_LOW_RESOURCE_MODE:-false}"
+AIRBYTE_INSECURE_COOKIES="\${AIRBYTE_INSECURE_COOKIES:-false}"
+AIRBYTE_INSTALL_ABCTL="\${AIRBYTE_INSTALL_ABCTL:-false}"
+AIRBYTE_ABCTL_INSTALL_DIR="\${AIRBYTE_ABCTL_INSTALL_DIR:-.tools/bin}"
+ROOT_DIR="$(pwd)"
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker is required before installing Airbyte with abctl." >&2
+  exit 1
+fi
+
+if ! command -v abctl >/dev/null 2>&1; then
+  if [ "$AIRBYTE_INSTALL_ABCTL" != "true" ]; then
+    echo "abctl is required. Install it first, or set AIRBYTE_INSTALL_ABCTL=true to use Airbyte's install script." >&2
+    exit 1
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "curl is required to install abctl with Airbyte's install script." >&2
+    exit 1
+  fi
+
+  if ! command -v bash >/dev/null 2>&1; then
+    echo "bash is required to run Airbyte's abctl install script." >&2
+    exit 1
+  fi
+
+  mkdir -p "$AIRBYTE_ABCTL_INSTALL_DIR"
+  curl -LsfS https://get.airbyte.com | DIR_INSTALL="$ROOT_DIR/$AIRBYTE_ABCTL_INSTALL_DIR" bash -
+  PATH="$ROOT_DIR/$AIRBYTE_ABCTL_INSTALL_DIR:$PATH"
+fi
+
+if ! command -v abctl >/dev/null 2>&1; then
+  echo "abctl was not found after installation. Add it to PATH and re-run." >&2
+  exit 1
+fi
+
+mkdir -p "$AIRBYTE_PROJECT_DIR"
+cp values.yaml "$AIRBYTE_PROJECT_DIR/values.yaml"
+if [ -f "$AIRBYTE_SECRET_FILE" ]; then
+  cp "$AIRBYTE_SECRET_FILE" "$AIRBYTE_PROJECT_DIR/secret.yaml"
+  chmod 600 "$AIRBYTE_PROJECT_DIR/secret.yaml"
+fi
+
+set -- local install --no-browser --port "$AIRBYTE_PORT"
+
+if [ -n "$AIRBYTE_HOST" ]; then
+  set -- "$@" --host "$AIRBYTE_HOST"
+fi
+
+if [ "$AIRBYTE_CHART_VERSION" != "latest" ]; then
+  set -- "$@" --chart-version "$AIRBYTE_CHART_VERSION"
+fi
+
+if [ -f "$AIRBYTE_VALUES_FILE" ]; then
+  set -- "$@" --values "$AIRBYTE_VALUES_FILE"
+fi
+
+if [ -f "$AIRBYTE_SECRET_FILE" ]; then
+  set -- "$@" --secret "$AIRBYTE_SECRET_FILE"
+fi
+
+if [ "$AIRBYTE_LOW_RESOURCE_MODE" = "true" ]; then
+  set -- "$@" --low-resource-mode
+fi
+
+if [ "$AIRBYTE_INSECURE_COOKIES" = "true" ]; then
+  set -- "$@" --insecure-cookies
+fi
+
+abctl "$@"
+abctl local status > "$AIRBYTE_PROJECT_DIR/abctl-status.txt" || true
+if abctl local credentials > "$AIRBYTE_PROJECT_DIR/abctl-credentials.json"; then
+  chmod 600 "$AIRBYTE_PROJECT_DIR/abctl-credentials.json"
+fi
+
+echo "Airbyte installed or upgraded with abctl."
+echo "Open http://$AIRBYTE_HOST:$AIRBYTE_PORT and retrieve credentials with: abctl local credentials"
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+AIRBYTE_NAMESPACE="\${AIRBYTE_NAMESPACE:-airbyte-abctl}"
+AIRBYTE_KUBECONFIG="\${AIRBYTE_KUBECONFIG:-$HOME/.airbyte/abctl/abctl.kubeconfig}"
+APP_URL="\${APP_URL:-\${AIRBYTE_HEALTH_URL:-http://localhost:8000}}"
+
+if command -v abctl >/dev/null 2>&1; then
+  abctl local status
+fi
+
+status="$(curl -sS -o /dev/null -w '%{http_code}' "$APP_URL" || true)"
+
+case "$status" in
+  2*|3*|401|403)
+    echo "Airbyte is reachable at $APP_URL with HTTP $status"
+    ;;
+  *)
+    echo "Airbyte check failed at $APP_URL with HTTP $status" >&2
+    if [ -f "$AIRBYTE_KUBECONFIG" ] && command -v kubectl >/dev/null 2>&1; then
+      kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" get pods -n "$AIRBYTE_NAMESPACE"
+    fi
+    exit 1
+    ;;
+esac
+
+if [ -f "$AIRBYTE_KUBECONFIG" ] && command -v kubectl >/dev/null 2>&1; then
+  kubectl --kubeconfig "$AIRBYTE_KUBECONFIG" get pods -n "$AIRBYTE_NAMESPACE"
+fi
+`,
+    },
+  ],
+}
+
 const langfuse: Launchpack = {
   id: 'langfuse',
   name: 'Langfuse',
@@ -3445,6 +3819,7 @@ export const launchpacks = [
   outline,
   supabase,
   dify,
+  airbyte,
   langfuse,
   temporal,
   keycloak,
