@@ -80,6 +80,10 @@ test('contribution guide documents launchpack requirements', async () => {
   assert.match(guide, /Storage bucket\/object metadata row/)
   assert.match(guide, /scripts\/validate-dify-backup-restore\.sh/)
   assert.match(guide, /main and plugin/)
+  assert.match(guide, /scripts\/validate-airbyte-backup-restore\.sh/)
+  assert.match(guide, /lightweight abctl\/Kubernetes harness/)
+  assert.match(guide, /does not prove a full `abctl local\s+install`/i)
+  assert.match(guide, /KEEP_AIRBYTE_VALIDATION/)
   assert.match(guide, /scripts\/validate-posthog-backup-restore\.sh/)
   assert.match(guide, /upstream\s+hobby Compose files/)
   assert.match(guide, /Postgres, ClickHouse, SeaweedFS, object storage, Kafka, Redis, and/)
@@ -203,6 +207,22 @@ test('Dify backup restore validator is repeatable shell', async () => {
   assert.match(content, /oss_launchpack_validation/)
   assert.match(content, /oss_launchpack_plugin_validation/)
   assert.match(content, /KEEP_DIFY_VALIDATION/)
+
+  const scriptStat = await stat(script)
+  assert.equal((scriptStat.mode & 0o111) > 0, true)
+})
+
+test('Airbyte backup restore validator is repeatable shell', async () => {
+  const script = 'scripts/validate-airbyte-backup-restore.sh'
+  await execFileAsync('sh', ['-n', script])
+
+  const content = await readFile(script, 'utf8')
+  assert.match(content, /FAKE_AIRBYTE_STATE_DIR/)
+  assert.match(content, /AIRBYTE_KUBECONFIG/)
+  assert.match(content, /airbyte-postgres\.sql/)
+  assert.match(content, /airbyte-minio\.tar\.gz/)
+  assert.match(content, /KEEP_AIRBYTE_VALIDATION/)
+  assert.match(content, /Does not prove: a full abctl local install/)
 
   const scriptStat = await stat(script)
   assert.equal((scriptStat.mode & 0o111) > 0, true)

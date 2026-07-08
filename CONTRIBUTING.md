@@ -173,6 +173,22 @@ Set `KEEP_DIFY_VALIDATION=1` to leave the generated stack in place for manual
 inspection. Otherwise the script removes its containers and volumes before it
 exits.
 
+The Airbyte validator generates `tmp/airbyte`, then runs the generated
+backup/restore scripts against a lightweight abctl/Kubernetes harness instead
+of starting a real kind cluster. It proves the scripts use an explicit
+test-only kubeconfig, the expected `airbyte-abctl` namespace and pod names, the
+`kubectl exec`/`kubectl cp` flow, and the documented backup artifacts including
+`airbyte-postgres.sql`, `airbyte-minio.tar.gz`, Kubernetes secrets/configmaps,
+abctl state, and the image manifest. It does not prove a full `abctl local
+install`, real kind networking, or application-level Airbyte recovery:
+
+```bash
+scripts/validate-airbyte-backup-restore.sh
+```
+
+Set `KEEP_AIRBYTE_VALIDATION=1` to leave the generated harness in place for
+manual inspection. Otherwise the script removes it before it exits.
+
 The PostHog smoke test generates `tmp/posthog`, fetches the current upstream
 hobby Compose files, verifies the official service names and durable mount
 destinations still match the launchpack metadata, then starts a lightweight
