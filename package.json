@@ -44,6 +44,9 @@
     "langfuse",
     "llm-observability",
     "llmops",
+    "temporal",
+    "workflow-orchestration",
+    "durable-execution",
     "oss"
   ],
   "author": "Shreyas Shinde",

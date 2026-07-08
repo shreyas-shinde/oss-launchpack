@@ -28,6 +28,7 @@ test('catalog exposes the operations-ready wedges', () => {
     'supabase',
     'dify',
     'langfuse',
+    'temporal',
     'homepage',
   ])
   assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
@@ -723,6 +724,51 @@ test('generates a Langfuse wrapper around the official Docker Compose setup', as
   assert.match(manifest, /"pack": "langfuse"/)
   assert.match(manifest, /"supportModel": "customer-owned-only"/)
   assert.match(manifest, /"id": "langfuse-official-state"/)
+})
+
+test('generates a Temporal wrapper around the official samples-server Compose setup', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('temporal', dir)
+
+  assert.equal(result.files.some((file) => file.endsWith('compose.yaml')), false)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /TEMPORAL_SOURCE_REF=main/)
+  assert.match(env, /TEMPORAL_COMPOSE_FILE=docker-compose-postgres\.yml/)
+  assert.match(env, /TEMPORAL_ADDRESS=localhost:7233/)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /wraps the official `temporalio\/samples-server\/compose`/)
+  assert.match(readme, /docker-compose-postgres\.yml/)
+  assert.match(readme, /Do not expose it to the public internet/)
+
+  const install = await readFile(path.join(dir, 'ops/install-official.sh'), 'utf8')
+  assert.match(install, /git clone --filter=blob:none --sparse https:\/\/github\.com\/temporalio\/samples-server\.git/)
+  assert.match(install, /git sparse-checkout set compose/)
+  assert.match(install, /TEMPORAL_COMPOSE_FILE/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /docker-compose-postgres\.yml/)
+  assert.match(backup, /temporal-database\.sql/)
+  assert.match(backup, /temporal-visibility\.sql/)
+  assert.match(backup, /compose -f "\$TEMPORAL_COMPOSE_FILE" stop temporal temporal-ui/)
+  assert.match(backup, /pg_dump --clean --if-exists -U "\$TEMPORAL_POSTGRES_USER" temporal/)
+  assert.match(backup, /pg_dump --clean --if-exists -U "\$TEMPORAL_POSTGRES_USER" temporal_visibility/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /temporal-database\.sql/)
+  assert.match(restore, /temporal-visibility\.sql/)
+  assert.match(restore, /DROP SCHEMA IF EXISTS public CASCADE/)
+  assert.match(restore, /pg_isready -U "\$TEMPORAL_POSTGRES_USER"/)
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /TEMPORAL_HEALTH_URL/)
+  assert.match(healthcheck, /nc -z localhost 7233/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "temporal"/)
+  assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
+  assert.match(manifest, /"id": "temporal-postgres-state"/)
 })
 
 test('generated operation scripts are valid shell syntax', async () => {

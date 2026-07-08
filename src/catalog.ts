@@ -2808,6 +2808,254 @@ esac
   ],
 }
 
+const temporal: Launchpack = {
+  id: 'temporal',
+  name: 'Temporal',
+  category: 'Workflow orchestration',
+  upstream: 'https://github.com/temporalio/samples-server/tree/main/compose',
+  defaultPort: 8080,
+  supportModel: 'permissive-hosting-fit',
+  whyNow:
+    'Durable execution is moving from advanced backend pattern to mainstream infrastructure for AI agents, payments, data workflows, and long-running business processes.',
+  operationsFit:
+    'Temporal operations need a current official Compose wrapper, clear public-network warnings, version pinning, namespace/bootstrap notes, and backup boundaries for persistence and visibility databases.',
+  licenseNote:
+    'Temporal Server and the official samples-server Compose files are MIT licensed. Preserve upstream notices and Temporal trademarks, and do not imply Temporal Cloud or official Temporal support.',
+  sizing: {
+    tier: 'official-stack-heavy',
+    minimumCpuCores: 4,
+    minimumMemoryGb: 8,
+    storage:
+      '50 GB+ for Temporal persistence and visibility history; increase based on workflow event history volume, retention, namespace count, and worker traffic.',
+    scaling:
+      'Use the official PostgreSQL Compose sample for local, VM, and low-scale customer-owned deployments. For production HA, split Temporal roles and move to managed PostgreSQL plus Helm/Kubernetes or another supported deployment pattern.',
+    notes: [
+      'Temporal Frontend on port 7233 should be treated like database infrastructure and kept off the public internet.',
+      'The PostgreSQL-only sample keeps persistence and visibility in two logical databases: temporal and temporal_visibility.',
+      'For higher visibility query volume, evaluate the upstream Elasticsearch or OpenSearch examples.',
+      'Workers are not included in this pack; application teams run workers separately and point them at the Temporal Frontend.',
+    ],
+  },
+  operations: {
+    healthcheckUrl: 'http://localhost:8080',
+    backupTargets: [
+      {
+        type: 'command',
+        id: 'temporal-postgres-state',
+        description:
+          'Official PostgreSQL Compose state: source ref, Compose/config files, and logical dumps of the temporal and temporal_visibility databases.',
+        backupCommands: [
+          'TEMPORAL_PROJECT_DIR="${TEMPORAL_PROJECT_DIR:-self-hosted}"',
+          'TEMPORAL_COMPOSE_FILE="${TEMPORAL_COMPOSE_FILE:-docker-compose-postgres.yml}"',
+          'if [ ! -d "$TEMPORAL_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before backing up Temporal." >&2; exit 1; fi',
+          'TEMPORAL_ENV_FILE="$TEMPORAL_PROJECT_DIR/.env"',
+          'TEMPORAL_POSTGRES_USER="$(read_env_file_value "$TEMPORAL_ENV_FILE" POSTGRES_USER || true)"',
+          'TEMPORAL_POSTGRES_PASSWORD="$(read_env_file_value "$TEMPORAL_ENV_FILE" POSTGRES_PASSWORD || true)"',
+          'TEMPORAL_POSTGRES_USER="${TEMPORAL_POSTGRES_USER:-temporal}"',
+          'TEMPORAL_POSTGRES_PASSWORD="${TEMPORAL_POSTGRES_PASSWORD:-temporal}"',
+          'if [ -f "$TEMPORAL_ENV_FILE" ]; then cp "$TEMPORAL_ENV_FILE" "$BACKUP_DIR_ABS/temporal.env"; chmod 600 "$BACKUP_DIR_ABS/temporal.env"; fi',
+          'if [ -f "$TEMPORAL_PROJECT_DIR/.temporal-source-ref" ]; then cp "$TEMPORAL_PROJECT_DIR/.temporal-source-ref" "$BACKUP_DIR_ABS/temporal-source-ref.txt"; fi',
+          'tar -C "$TEMPORAL_PROJECT_DIR" -czf "$BACKUP_DIR_ABS/temporal-config.tar.gz" .env "$TEMPORAL_COMPOSE_FILE" dynamicconfig scripts 2>/dev/null || true',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" stop temporal temporal-ui >/dev/null || true)',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" exec -T postgresql env PGPASSWORD="$TEMPORAL_POSTGRES_PASSWORD" pg_dump --clean --if-exists -U "$TEMPORAL_POSTGRES_USER" temporal) > "$BACKUP_DIR_ABS/temporal-database.sql"',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" exec -T postgresql env PGPASSWORD="$TEMPORAL_POSTGRES_PASSWORD" pg_dump --clean --if-exists -U "$TEMPORAL_POSTGRES_USER" temporal_visibility) > "$BACKUP_DIR_ABS/temporal-visibility.sql"',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" up -d)',
+        ],
+        restoreCommands: [
+          'TEMPORAL_PROJECT_DIR="${TEMPORAL_PROJECT_DIR:-self-hosted}"',
+          'TEMPORAL_COMPOSE_FILE="${TEMPORAL_COMPOSE_FILE:-docker-compose-postgres.yml}"',
+          'if [ ! -d "$TEMPORAL_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before restoring Temporal." >&2; exit 1; fi',
+          'for file in temporal-database.sql temporal-visibility.sql; do if [ ! -f "$BACKUP_DIR_ABS/$file" ]; then echo "Missing Temporal backup artifact: $BACKUP_DIR_ABS/$file" >&2; exit 1; fi; done',
+          'if [ -f "$BACKUP_DIR_ABS/temporal-config.tar.gz" ]; then tar -C "$TEMPORAL_PROJECT_DIR" -xzf "$BACKUP_DIR_ABS/temporal-config.tar.gz"; fi',
+          'if [ -f "$BACKUP_DIR_ABS/temporal.env" ]; then cp "$BACKUP_DIR_ABS/temporal.env" "$TEMPORAL_PROJECT_DIR/.env"; chmod 600 "$TEMPORAL_PROJECT_DIR/.env"; fi',
+          'if [ -f "$BACKUP_DIR_ABS/temporal-source-ref.txt" ]; then cp "$BACKUP_DIR_ABS/temporal-source-ref.txt" "$TEMPORAL_PROJECT_DIR/.temporal-source-ref"; fi',
+          'TEMPORAL_ENV_FILE="$TEMPORAL_PROJECT_DIR/.env"',
+          'TEMPORAL_POSTGRES_USER="$(read_env_file_value "$TEMPORAL_ENV_FILE" POSTGRES_USER || true)"',
+          'TEMPORAL_POSTGRES_PASSWORD="$(read_env_file_value "$TEMPORAL_ENV_FILE" POSTGRES_PASSWORD || true)"',
+          'TEMPORAL_POSTGRES_USER="${TEMPORAL_POSTGRES_USER:-temporal}"',
+          'TEMPORAL_POSTGRES_PASSWORD="${TEMPORAL_POSTGRES_PASSWORD:-temporal}"',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" up -d postgresql)',
+          'attempt=0; while [ "$attempt" -lt 60 ]; do if (cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" exec -T postgresql pg_isready -U "$TEMPORAL_POSTGRES_USER" >/dev/null 2>&1); then break; fi; attempt=$((attempt + 1)); sleep 1; done; if [ "$attempt" -ge 60 ]; then echo "Timed out waiting for Temporal Postgres." >&2; exit 1; fi',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" stop temporal temporal-ui temporal-create-namespace >/dev/null || true)',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" exec -T postgresql env PGPASSWORD="$TEMPORAL_POSTGRES_PASSWORD" psql -U "$TEMPORAL_POSTGRES_USER" -d temporal -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;")',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" exec -T postgresql env PGPASSWORD="$TEMPORAL_POSTGRES_PASSWORD" psql -U "$TEMPORAL_POSTGRES_USER" -d temporal -v ON_ERROR_STOP=1) < "$BACKUP_DIR_ABS/temporal-database.sql"',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" exec -T postgresql env PGPASSWORD="$TEMPORAL_POSTGRES_PASSWORD" psql -U "$TEMPORAL_POSTGRES_USER" -d temporal_visibility -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;")',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" exec -T postgresql env PGPASSWORD="$TEMPORAL_POSTGRES_PASSWORD" psql -U "$TEMPORAL_POSTGRES_USER" -d temporal_visibility -v ON_ERROR_STOP=1) < "$BACKUP_DIR_ABS/temporal-visibility.sql"',
+          '(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" up -d)',
+        ],
+      },
+    ],
+    upgrade: {
+      command: './ops/install-official.sh && (cd self-hosted && docker compose -f docker-compose-postgres.yml up -d)',
+      notes: [
+        'Back up both temporal and temporal_visibility databases before upgrading Temporal Server or changing schema tooling.',
+        'Pin TEMPORAL_SOURCE_REF to a reviewed commit or release-compatible branch for production-like deployments.',
+        'Review upstream Temporal Server release notes and schema migration guidance before changing TEMPORAL_VERSION.',
+        'Keep Temporal Frontend, Postgres, and worker network access private; expose only the UI behind your own auth/proxy if needed.',
+        'For production HA, move off the single-node Compose sample to the upstream Helm or separately managed service pattern.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: '.env.example',
+      content: `TEMPORAL_SOURCE_REF=main
+TEMPORAL_PROJECT_DIR=self-hosted
+TEMPORAL_UPSTREAM_DIR=.upstream/temporal-samples-server
+TEMPORAL_COMPOSE_FILE=docker-compose-postgres.yml
+TEMPORAL_HEALTH_URL=http://localhost:8080
+TEMPORAL_ADDRESS=localhost:7233
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Temporal Launchpack
+
+This pack wraps the official \`temporalio/samples-server/compose\` examples
+instead of copying a Compose file into this generator. The pack defaults to
+\`docker-compose-postgres.yml\`, which runs Temporal Server, Temporal UI, and
+PostgreSQL-backed persistence and visibility databases.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+./ops/install-official.sh
+cd self-hosted
+docker compose -f docker-compose-postgres.yml config >/dev/null
+docker compose -f docker-compose-postgres.yml up -d
+cd ..
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:8080 for the Temporal UI. SDK workers should connect to
+\`localhost:7233\` locally or the private Temporal Frontend address in your
+environment.
+
+## Operations
+
+- This is an unofficial customer-owned deployment pack. It is not Temporal Cloud and does not imply Temporal support.
+- Temporal Server and samples-server Compose files are MIT licensed.
+- Temporal Frontend on port 7233 is a critical persistence/control-plane service. Do not expose it to the public internet.
+- The generated backup script stops Temporal and UI containers before dumping PostgreSQL to reduce write activity during backup.
+- Backups include \`temporal\`, \`temporal_visibility\`, \`.env\`, dynamic config, scripts, and the selected Compose file.
+- The PostgreSQL-only sample is easier to back up than the Elasticsearch/OpenSearch variants. Evaluate upstream search-backed examples for higher visibility query load.
+- Workers are application runtime state and are intentionally not bundled here.
+- For production HA, follow upstream Helm/Kubernetes or separately managed Temporal service guidance.
+`,
+    },
+    {
+      path: 'ops/install-official.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+TEMPORAL_SOURCE_REF="\${TEMPORAL_SOURCE_REF:-main}"
+TEMPORAL_PROJECT_DIR="\${TEMPORAL_PROJECT_DIR:-self-hosted}"
+TEMPORAL_UPSTREAM_DIR="\${TEMPORAL_UPSTREAM_DIR:-.upstream/temporal-samples-server}"
+TEMPORAL_COMPOSE_FILE="\${TEMPORAL_COMPOSE_FILE:-docker-compose-postgres.yml}"
+ROOT_DIR="$(pwd)"
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "git is required to install the official Temporal samples-server Compose setup." >&2
+  exit 1
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "Docker Compose is required before installing Temporal self-hosted." >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$TEMPORAL_UPSTREAM_DIR")"
+
+if [ ! -d "$TEMPORAL_UPSTREAM_DIR/.git" ]; then
+  git clone --filter=blob:none --sparse https://github.com/temporalio/samples-server.git "$TEMPORAL_UPSTREAM_DIR"
+fi
+
+cd "$TEMPORAL_UPSTREAM_DIR"
+git fetch --depth 1 origin "$TEMPORAL_SOURCE_REF"
+git checkout --detach FETCH_HEAD
+git sparse-checkout init --cone >/dev/null 2>&1 || true
+git sparse-checkout set compose
+cd "$ROOT_DIR"
+
+mkdir -p "$TEMPORAL_PROJECT_DIR"
+cp -R "$TEMPORAL_UPSTREAM_DIR/compose/." "$TEMPORAL_PROJECT_DIR/"
+printf '%s\\n' "$TEMPORAL_SOURCE_REF" > "$TEMPORAL_PROJECT_DIR/.temporal-source-ref"
+
+if [ ! -f "$TEMPORAL_PROJECT_DIR/$TEMPORAL_COMPOSE_FILE" ]; then
+  echo "Selected Temporal compose file was not found: $TEMPORAL_PROJECT_DIR/$TEMPORAL_COMPOSE_FILE" >&2
+  exit 1
+fi
+
+echo "Official Temporal samples-server Compose setup $TEMPORAL_SOURCE_REF installed in $TEMPORAL_PROJECT_DIR"
+echo "Selected Compose file: $TEMPORAL_COMPOSE_FILE"
+echo "Next: cd $TEMPORAL_PROJECT_DIR && docker compose -f $TEMPORAL_COMPOSE_FILE up -d"
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+TEMPORAL_PROJECT_DIR="\${TEMPORAL_PROJECT_DIR:-self-hosted}"
+TEMPORAL_COMPOSE_FILE="\${TEMPORAL_COMPOSE_FILE:-docker-compose-postgres.yml}"
+APP_URL="\${APP_URL:-\${TEMPORAL_HEALTH_URL:-http://localhost:8080}}"
+
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+    return
+  fi
+
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
+    return
+  fi
+
+  echo "Docker Compose is required. Install the Docker Compose plugin or docker-compose." >&2
+  exit 1
+}
+
+if [ ! -d "$TEMPORAL_PROJECT_DIR" ]; then
+  echo "Run ./ops/install-official.sh before checking Temporal." >&2
+  exit 1
+fi
+
+status="$(curl -sS -o /dev/null -w '%{http_code}' "$APP_URL" || true)"
+
+case "$status" in
+  2*|3*|401|403)
+    echo "Temporal UI is reachable at $APP_URL with HTTP $status"
+    ;;
+  *)
+    echo "Temporal UI check failed at $APP_URL with HTTP $status" >&2
+    (cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" ps)
+    exit 1
+    ;;
+esac
+
+(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" exec -T temporal nc -z localhost 7233)
+echo "Temporal Frontend is reachable inside the temporal container on port 7233"
+(cd "$TEMPORAL_PROJECT_DIR" && compose -f "$TEMPORAL_COMPOSE_FILE" ps)
+`,
+    },
+  ],
+}
+
 const homepage: Launchpack = {
   id: 'homepage',
   name: 'Homepage',
@@ -2957,6 +3205,7 @@ export const launchpacks = [
   supabase,
   dify,
   langfuse,
+  temporal,
   homepage,
 ] as const satisfies readonly Launchpack[]
 
