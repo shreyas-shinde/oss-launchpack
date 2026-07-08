@@ -360,6 +360,11 @@ function renderBackupAction(target: BackupTarget): string {
       return `backup_postgres ${shellQuote(target.service)} ${shellQuote(
         target.userEnv,
       )} ${shellQuote(target.databaseEnv)} ${shellQuote(`${target.id}.sql`)}`
+    case 'command':
+      return [
+        `echo ${shellQuote(`Running ${target.id}: ${target.description}`)}`,
+        ...target.backupCommands,
+      ].join('\n')
   }
 }
 
@@ -373,6 +378,11 @@ function renderRestoreAction(target: BackupTarget): string {
       return `restore_postgres ${shellQuote(target.service)} ${shellQuote(
         target.userEnv,
       )} ${shellQuote(target.databaseEnv)} ${shellQuote(`${target.id}.sql`)}`
+    case 'command':
+      return [
+        `echo ${shellQuote(`Restoring ${target.id}: ${target.description}`)}`,
+        ...target.restoreCommands,
+      ].join('\n')
   }
 }
 

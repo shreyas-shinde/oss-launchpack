@@ -18,6 +18,9 @@ body:
         - Open WebUI
         - n8n
         - Memos
+        - Uptime Kuma
+        - Sentry
+        - Homepage
         - Other
     validations:
       required: true

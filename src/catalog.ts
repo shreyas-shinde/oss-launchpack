@@ -26,6 +26,13 @@ export type BackupTarget =
       userEnv: string
       description: string
     }
+  | {
+      type: 'command'
+      id: string
+      description: string
+      backupCommands: string[]
+      restoreCommands: string[]
+    }
 
 export type LaunchpackOperations = {
   healthcheckUrl: string
@@ -468,6 +475,157 @@ echo "Uptime Kuma is reachable at $APP_URL"
   ],
 }
 
+const sentry: Launchpack = {
+  id: 'sentry',
+  name: 'Sentry',
+  category: 'Observability',
+  upstream: 'https://github.com/getsentry/self-hosted',
+  defaultPort: 9000,
+  supportModel: 'customer-owned-only',
+  whyNow:
+    'Sentry is a high-demand observability app, but its self-hosted stack is intentionally complex and operationally heavy enough to need a wrapper around install, backups, upgrades, and support boundaries.',
+  managedOpportunity:
+    'Sentry work should focus on customer-owned self-hosted installations, upgrade help, backup validation, and migration planning. Do not offer hosted Sentry resale or a competing Sentry-like service without an upstream agreement.',
+  licenseNote:
+    'Sentry self-hosted is Fair Source under FSL-1.1-Apache-2.0. Internal/customer-owned deployments and professional services can fit the license, but selling deployed self-hosted Sentry as SaaS or a similar commercial offering is prohibited by upstream terms.',
+  operations: {
+    healthcheckUrl: 'http://localhost:9000',
+    backupTargets: [
+      {
+        type: 'command',
+        id: 'sentry-partial-json',
+        description:
+          'Official self-hosted partial JSON backup for low-volume data such as users, organizations, projects, settings, alert rules, and monitors. It does not include historical event data.',
+        backupCommands: [
+          'if [ ! -d self-hosted ]; then echo "Run ./ops/install-official.sh before backing up Sentry." >&2; exit 1; fi',
+          '(cd self-hosted && ./scripts/backup.sh global)',
+          'cp self-hosted/sentry/backup.json "$BACKUP_DIR_ABS/sentry-partial-global.json"',
+        ],
+        restoreCommands: [
+          'if [ ! -d self-hosted ]; then echo "Run ./ops/install-official.sh before restoring Sentry." >&2; exit 1; fi',
+          'if [ ! -f "$BACKUP_DIR_ABS/sentry-partial-global.json" ]; then echo "Missing Sentry backup: $BACKUP_DIR_ABS/sentry-partial-global.json" >&2; exit 1; fi',
+          'cp "$BACKUP_DIR_ABS/sentry-partial-global.json" self-hosted/sentry/backup.json',
+          '(cd self-hosted && ./scripts/restore.sh global)',
+        ],
+      },
+    ],
+    upgrade: {
+      command: 'cd self-hosted && git fetch --tags && git checkout <target-release> && ./install.sh',
+      notes: [
+        'Use official getsentry/self-hosted releases, not nightly builds, for production-like installations.',
+        'Expect downtime during upgrades; Sentry runs migrations as part of install.sh.',
+        'Restore partial JSON backups on the same Sentry version and a fresh migrated install.',
+        'For full historical event recovery, follow upstream Docker volume backup guidance and test restores before relying on it.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: '.env.example',
+      content: `SENTRY_SELF_HOSTED_VERSION=latest
+REPORT_SELF_HOSTED_ISSUES=0
+SENTRY_URL=http://localhost:9000
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Sentry Launchpack
+
+This pack wraps the official \`getsentry/self-hosted\` repository instead of
+forking Sentry's large Docker Compose stack. That keeps the operational surface
+closer to upstream and avoids stale generated Compose files.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+./ops/install-official.sh
+cd self-hosted
+docker compose up --wait
+cd ..
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:9000.
+
+## Operations
+
+- Use official self-hosted releases for production-like installs.
+- Sentry self-hosted is geared toward low-volume deployments and proofs of concept.
+- The generated backup script delegates to upstream \`./scripts/backup.sh global\`.
+- The official partial JSON backup excludes historical event data.
+- Full historical-event backup requires Docker volume backup and restore testing.
+- This pack is for customer-owned deployments and professional services; do not resell hosted Sentry access without upstream agreement.
+`,
+    },
+    {
+      path: 'ops/install-official.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+SENTRY_SELF_HOSTED_VERSION="\${SENTRY_SELF_HOSTED_VERSION:-latest}"
+REPORT_SELF_HOSTED_ISSUES="\${REPORT_SELF_HOSTED_ISSUES:-0}"
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "git is required to install Sentry self-hosted." >&2
+  exit 1
+fi
+
+if [ "$SENTRY_SELF_HOSTED_VERSION" = "latest" ] && ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required to resolve the latest Sentry self-hosted release. Set SENTRY_SELF_HOSTED_VERSION to a release tag to avoid this." >&2
+  exit 1
+fi
+
+if [ ! -d self-hosted/.git ]; then
+  git clone https://github.com/getsentry/self-hosted.git self-hosted
+fi
+
+cd self-hosted
+git fetch --tags
+
+if [ "$SENTRY_SELF_HOSTED_VERSION" = "latest" ]; then
+  VERSION_URL="$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/getsentry/self-hosted/releases/latest)"
+  SENTRY_SELF_HOSTED_VERSION="\${VERSION_URL##*/}"
+fi
+
+git checkout "$SENTRY_SELF_HOSTED_VERSION"
+
+if [ "$REPORT_SELF_HOSTED_ISSUES" = "1" ]; then
+  ./install.sh --report-self-hosted-issues
+else
+  ./install.sh --no-report-self-hosted-issues
+fi
+
+echo "Sentry self-hosted $SENTRY_SELF_HOSTED_VERSION installed in ./self-hosted"
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+APP_URL="\${APP_URL:-\${SENTRY_URL:-http://localhost:9000}}"
+curl -fsS "$APP_URL" >/dev/null
+echo "Sentry is reachable at $APP_URL"
+`,
+    },
+  ],
+}
+
 const homepage: Launchpack = {
   id: 'homepage',
   name: 'Homepage',
@@ -597,6 +755,7 @@ export const launchpacks = [
   n8n,
   memos,
   uptimeKuma,
+  sentry,
   homepage,
 ] as const satisfies readonly Launchpack[]
 

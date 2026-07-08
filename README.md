@@ -8,6 +8,9 @@ operations manifest. The project starts with a small catalog and should grow
 into a trusted operational layer for apps that people want to run but do not
 want to babysit.
 
+For complex upstream-maintained stacks, a launchpack may wrap the official
+upstream deployment instead of generating a stale copy of its Compose file.
+
 ## Why This
 
 Current GitHub momentum is concentrated around self-hosted AI, automation, and
@@ -57,6 +60,7 @@ multi-customer use.
 | `n8n` | Automation | `customer-owned-only` | <https://github.com/n8n-io/n8n> | Customer-owned/internal deployments, backups, upgrade support |
 | `memos` | Personal knowledge | `permissive-hosting-fit` | <https://github.com/usememos/memos> | Private notes hosting, backups, custom domains |
 | `uptime-kuma` | Monitoring | `permissive-hosting-fit` | <https://github.com/louislam/uptime-kuma> | Monitor setup, notification channels, incident routing |
+| `sentry` | Observability | `customer-owned-only` | <https://github.com/getsentry/self-hosted> | Customer-owned self-hosted setup, backup validation, upgrade support |
 | `homepage` | Dashboard | `review-required` | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
 
 Support model meanings:
@@ -97,7 +101,7 @@ oss-launchpack init memos ./deploy/memos --force
 
 Generated packs include:
 
-- `compose.yaml`
+- `compose.yaml` for direct Compose packs, or an upstream wrapper for complex official stacks
 - `.env.example`
 - app-specific `README.md`
 - `OPERATIONS.md`
@@ -114,7 +118,7 @@ Generated packs include:
 2. Validate backup and restore flows on clean VPS hosts.
 3. Document production hardening guides for domains, TLS, updates, and monitoring.
 4. Add pack metadata for resource sizing and upgrade notes.
-5. Add flagship operations packs for Sentry, PostHog, Supabase, Outline, and Dify.
+5. Add flagship operations packs for PostHog, Supabase, Outline, and Dify.
 
 ## Development
 

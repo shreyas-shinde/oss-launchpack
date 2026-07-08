@@ -24,6 +24,8 @@
     "backup",
     "restore",
     "managed-deployment",
+    "observability",
+    "sentry",
     "oss"
   ],
   "author": "Shreyas Shinde",

@@ -12,7 +12,7 @@ const execFileAsync = promisify(execFile)
 
 test('catalog exposes the initial managed-deployment wedges', () => {
   const ids = listLaunchpacks().map((pack) => pack.id)
-  assert.deepEqual(ids, ['open-webui', 'n8n', 'memos', 'uptime-kuma', 'homepage'])
+  assert.deepEqual(ids, ['open-webui', 'n8n', 'memos', 'uptime-kuma', 'sentry', 'homepage'])
   assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
   assert.equal(listLaunchpacks().every((pack) => pack.supportModel.length > 0), true)
   assert.equal(listLaunchpacks().every((pack) => pack.operations.backupTargets.length > 0), true)
@@ -68,14 +68,44 @@ test('generates database backup and restore scripts for Postgres-backed packs', 
   assert.match(manifest, /"type": "postgres"/)
 })
 
+test('generates a Sentry wrapper around the official self-hosted repository', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('sentry', dir)
+
+  assert.equal(result.files.some((file) => file.endsWith('compose.yaml')), false)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /wraps the official `getsentry\/self-hosted` repository/)
+  assert.match(readme, /do not resell hosted Sentry access/)
+
+  const install = await readFile(path.join(dir, 'ops/install-official.sh'), 'utf8')
+  assert.match(install, /git clone https:\/\/github\.com\/getsentry\/self-hosted\.git/)
+  assert.match(install, /--no-report-self-hosted-issues/)
+
+  const installStat = await stat(path.join(dir, 'ops/install-official.sh'))
+  assert.equal((installStat.mode & 0o111) > 0, true)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /\.\/scripts\/backup\.sh global/)
+  assert.match(backup, /sentry-partial-global\.json/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /\.\/scripts\/restore\.sh global/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"type": "command"/)
+  assert.match(manifest, /"supportModel": "customer-owned-only"/)
+})
+
 test('generated operation scripts are valid shell syntax', async () => {
   for (const pack of listLaunchpacks()) {
     const dir = await mkdtemp(path.join(os.tmpdir(), `oss-launchpack-${pack.id}-`))
-    await generateLaunchpack(pack.id, dir)
+    const result = await generateLaunchpack(pack.id, dir)
 
-    await execFileAsync('sh', ['-n', path.join(dir, 'ops/backup.sh')])
-    await execFileAsync('sh', ['-n', path.join(dir, 'ops/restore.sh')])
-    await execFileAsync('sh', ['-n', path.join(dir, 'ops/healthcheck.sh')])
+    const shellFiles = result.files.filter((file) => file.endsWith('.sh'))
+    for (const shellFile of shellFiles) {
+      await execFileAsync('sh', ['-n', shellFile])
+    }
   }
 })
 
