@@ -60,9 +60,9 @@ pnpm build
 Run locally:
 
 ```bash
-pnpm exec tsx src/cli.ts list
-pnpm exec tsx src/cli.ts show open-webui
-pnpm exec tsx src/cli.ts init open-webui ./deploy/open-webui
+node dist/cli.js list
+node dist/cli.js show open-webui
+node dist/cli.js init open-webui ./deploy/open-webui
 ```
 
 After building, the compiled CLI is available at `dist/cli.js`.
@@ -102,8 +102,7 @@ pnpm install
 pnpm check
 ```
 
-`pnpm check` builds the TypeScript project and runs the Node test suite through
-`tsx`.
+`pnpm check` builds the TypeScript project and runs the Node test suite.
 
 ## License
 

@@ -12,8 +12,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "tsx --test test/*.test.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "rm -rf .tmp/test-build && tsc -p tsconfig.test.json && node --test .tmp/test-build/test/*.test.js",
     "check": "pnpm build && pnpm test"
   },
   "keywords": [
@@ -30,8 +30,7 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@types/node": "^22.10.10",
-    "tsx": "^4.20.0",
+    "@types/node": "22.10.10",
     "typescript": "^5.8.0"
   }
 }
