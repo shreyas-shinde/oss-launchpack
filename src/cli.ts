@@ -29,7 +29,7 @@ async function main(argv: string[]): Promise<void> {
 function printHelp(): void {
   console.log(`oss-launchpack
 
-Generate production-minded Docker Compose launchpacks for popular OSS apps.
+Generate operations-ready Docker Compose launchpacks for popular OSS apps.
 
 Commands:
   list                         List available launchpacks
@@ -69,6 +69,7 @@ Category: ${pack.category}
 Upstream: ${pack.upstream}
 Default port: ${pack.defaultPort}
 Support model: ${pack.supportModel}
+Health check URL: ${pack.operations.healthcheckUrl}
 
 License/commercial-use note:
 ${pack.licenseNote}
@@ -78,6 +79,14 @@ ${pack.whyNow}
 
 Managed deployment opportunity:
 ${pack.managedOpportunity}
+
+Backup targets:
+${pack.operations.backupTargets
+  .map((target) => `- ${target.id} (${target.type}): ${target.description}`)
+  .join('\n')}
+
+Upgrade:
+${pack.operations.upgrade.command}
 `)
 }
 

@@ -10,6 +10,32 @@ export type SupportModel =
   | 'upstream-agreement-required'
   | 'review-required'
 
+export type BackupTarget =
+  | {
+      type: 'mount'
+      id: string
+      service: string
+      path: string
+      description: string
+    }
+  | {
+      type: 'postgres'
+      id: string
+      service: string
+      databaseEnv: string
+      userEnv: string
+      description: string
+    }
+
+export type LaunchpackOperations = {
+  healthcheckUrl: string
+  backupTargets: BackupTarget[]
+  upgrade: {
+    command: string
+    notes: string[]
+  }
+}
+
 export type Launchpack = {
   id: string
   name: string
@@ -20,6 +46,7 @@ export type Launchpack = {
   whyNow: string
   managedOpportunity: string
   licenseNote: string
+  operations: LaunchpackOperations
   files: LaunchpackFile[]
 }
 
@@ -36,6 +63,32 @@ const openWebUi: Launchpack = {
     'Managed Open WebUI can bundle OAuth, model routing, backups, upgrades, and GPU/CPU hosting choices.',
   licenseNote:
     'Unofficial launchpack. Open WebUI uses a custom permissive license with branding protection; keep upstream branding intact and do not imply official endorsement.',
+  operations: {
+    healthcheckUrl: 'http://localhost:3000',
+    backupTargets: [
+      {
+        type: 'mount',
+        id: 'open-webui-data',
+        service: 'open-webui',
+        path: '/app/backend/data',
+        description: 'Open WebUI users, settings, chat data, and uploaded files.',
+      },
+      {
+        type: 'mount',
+        id: 'ollama-models',
+        service: 'ollama',
+        path: '/root/.ollama',
+        description: 'Ollama model cache and local model data.',
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: [
+        'Back up open-webui-data before major upgrades.',
+        'Ollama model backups can be large; decide whether model cache restore is required for your environment.',
+      ],
+    },
+  },
   files: [
     {
       path: 'compose.yaml',
@@ -122,6 +175,33 @@ const n8n: Launchpack = {
     'n8n support should focus on customer-owned/internal deployments unless a separate upstream commercial agreement allows hosted or embedded access.',
   licenseNote:
     'n8n is fair-code under the Sustainable Use License and Enterprise License. Do not resell hosted n8n access, white-label n8n, or embed it for customers without confirming the required n8n agreement.',
+  operations: {
+    healthcheckUrl: 'http://localhost:5678/healthz',
+    backupTargets: [
+      {
+        type: 'postgres',
+        id: 'n8n-postgres',
+        service: 'postgres',
+        databaseEnv: 'POSTGRES_DB',
+        userEnv: 'POSTGRES_USER',
+        description: 'Workflow, execution, credential, and user data in Postgres.',
+      },
+      {
+        type: 'mount',
+        id: 'n8n-files',
+        service: 'n8n',
+        path: '/home/node/.n8n',
+        description: 'n8n local files and instance-level configuration.',
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: [
+        'Keep N8N_ENCRYPTION_KEY stable across restores and upgrades.',
+        'Back up Postgres before every major version upgrade.',
+      ],
+    },
+  },
   files: [
     {
       path: 'compose.yaml',
@@ -229,6 +309,22 @@ const memos: Launchpack = {
     'Managed Memos can sell private hosting, automatic backups, custom domains, and low-friction import/export.',
   licenseNote:
     'Memos is MIT-licensed upstream; preserve upstream copyright and license notices.',
+  operations: {
+    healthcheckUrl: 'http://localhost:5230',
+    backupTargets: [
+      {
+        type: 'mount',
+        id: 'memos-data',
+        service: 'memos',
+        path: '/var/opt/memos',
+        description: 'Memos database, uploaded resources, and runtime data.',
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: ['Back up memos-data before upgrades or host migrations.'],
+    },
+  },
   files: [
     {
       path: 'compose.yaml',
@@ -298,6 +394,22 @@ const uptimeKuma: Launchpack = {
     'Uptime Kuma support can bundle monitor setup, notification channels, incident routing, upgrades, and backup checks.',
   licenseNote:
     'Uptime Kuma is MIT-licensed upstream; preserve upstream copyright and license notices.',
+  operations: {
+    healthcheckUrl: 'http://localhost:3001',
+    backupTargets: [
+      {
+        type: 'mount',
+        id: 'uptime-kuma-data',
+        service: 'uptime-kuma',
+        path: '/app/data',
+        description: 'Monitor configuration, history, and notification settings.',
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: ['Back up uptime-kuma-data before upgrades.'],
+    },
+  },
   files: [
     {
       path: 'compose.yaml',
@@ -369,6 +481,25 @@ const homepage: Launchpack = {
     'Homepage support can bundle service discovery, curated dashboards, docker integration, secret handling, and upgrade checks.',
   licenseNote:
     'Homepage is GPL-3.0-licensed upstream. Preserve notices and review GPL obligations before distributing modified versions or bundled distributions.',
+  operations: {
+    healthcheckUrl: 'http://localhost:3000',
+    backupTargets: [
+      {
+        type: 'mount',
+        id: 'homepage-config',
+        service: 'homepage',
+        path: '/app/config',
+        description: 'Homepage YAML configuration files.',
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: [
+        'Back up ./config before changing dashboard structure.',
+        'Review release notes before enabling Docker socket integrations.',
+      ],
+    },
+  },
   files: [
     {
       path: 'compose.yaml',

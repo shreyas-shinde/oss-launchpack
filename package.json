@@ -1,7 +1,7 @@
 {
   "name": "oss-launchpack",
   "version": "0.1.0",
-  "description": "Generate production-minded launchpacks for popular self-hosted OSS apps.",
+  "description": "Generate operations-ready launchpacks for popular self-hosted OSS apps.",
   "type": "module",
   "bin": {
     "oss-launchpack": "./dist/cli.js"
@@ -21,6 +21,8 @@
     "self-hosted",
     "docker-compose",
     "deployment",
+    "backup",
+    "restore",
     "managed-deployment",
     "oss"
   ],

@@ -1,11 +1,12 @@
 # OSS Launchpack
 
-Production-minded launchpacks for popular self-hosted apps.
+An open-source operations layer for popular self-hosted apps.
 
 `oss-launchpack` generates Docker Compose starter packs with environment
-examples, app-specific notes, and health checks. The project starts with a
-small catalog and should grow into a trusted operational layer for apps that
-people want to run but do not want to babysit.
+examples, app-specific notes, health checks, backup/restore scripts, and an
+operations manifest. The project starts with a small catalog and should grow
+into a trusted operational layer for apps that people want to run but do not
+want to babysit.
 
 ## Why This
 
@@ -99,17 +100,21 @@ Generated packs include:
 - `compose.yaml`
 - `.env.example`
 - app-specific `README.md`
+- `OPERATIONS.md`
 - `UPSTREAM.md`
 - `ops/healthcheck.sh`
+- `ops/backup.sh`
+- `ops/restore.sh`
+- `ops/manifest.json`
 - `.launchpack.json`
 
 ## Roadmap
 
 1. Add more high-demand launchpacks.
-2. Add optional backup and restore scripts.
-3. Validate packs on clean VPS hosts.
-4. Document production hardening guides for domains, TLS, updates, and monitoring.
-5. Add pack metadata for resource sizing and upgrade notes.
+2. Validate backup and restore flows on clean VPS hosts.
+3. Document production hardening guides for domains, TLS, updates, and monitoring.
+4. Add pack metadata for resource sizing and upgrade notes.
+5. Add flagship operations packs for Sentry, PostHog, Supabase, Outline, and Dify.
 
 ## Development
 
