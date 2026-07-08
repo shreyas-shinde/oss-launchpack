@@ -275,7 +275,187 @@ echo "Memos is reachable at $APP_URL"
   ],
 }
 
-export const launchpacks = [openWebUi, n8n, memos] as const satisfies readonly Launchpack[]
+const uptimeKuma: Launchpack = {
+  id: 'uptime-kuma',
+  name: 'Uptime Kuma',
+  category: 'Monitoring',
+  upstream: 'https://github.com/louislam/uptime-kuma',
+  defaultPort: 3001,
+  whyNow:
+    'Every self-hosted stack needs uptime checks before it becomes trusted infrastructure.',
+  managedOpportunity:
+    'Uptime Kuma support can bundle monitor setup, notification channels, incident routing, upgrades, and backup checks.',
+  licenseNote:
+    'Uptime Kuma is MIT-licensed upstream; preserve upstream copyright and license notices.',
+  files: [
+    {
+      path: 'compose.yaml',
+      content: `services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    restart: unless-stopped
+    ports:
+      - "\${UPTIME_KUMA_PORT:-3001}:3001"
+    volumes:
+      - uptime-kuma-data:/app/data
+
+volumes:
+  uptime-kuma-data:
+`,
+    },
+    {
+      path: '.env.example',
+      content: `UPTIME_KUMA_PORT=3001
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Uptime Kuma Launchpack
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+docker compose up -d
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:3001.
+
+## Operations
+
+- Upgrade: \`docker compose pull && docker compose up -d\`
+- Stop: \`docker compose down\`
+- Data lives in the \`uptime-kuma-data\` Docker volume.
+- Back up the volume before major upgrades.
+- Configure notification channels after first login.
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+APP_URL="\${APP_URL:-http://localhost:3001}"
+curl -fsS "$APP_URL" >/dev/null
+echo "Uptime Kuma is reachable at $APP_URL"
+`,
+    },
+  ],
+}
+
+const homepage: Launchpack = {
+  id: 'homepage',
+  name: 'Homepage',
+  category: 'Dashboard',
+  upstream: 'https://github.com/gethomepage/homepage',
+  defaultPort: 3000,
+  whyNow:
+    'Self-hosters quickly accumulate services; a dashboard becomes the front door and status surface for the stack.',
+  managedOpportunity:
+    'Homepage support can bundle service discovery, curated dashboards, docker integration, secret handling, and upgrade checks.',
+  licenseNote:
+    'Homepage is GPL-3.0-licensed upstream. Preserve notices and review GPL obligations before distributing modified versions or bundled distributions.',
+  files: [
+    {
+      path: 'compose.yaml',
+      content: `services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    restart: unless-stopped
+    ports:
+      - "\${HOMEPAGE_PORT:-3000}:3000"
+    volumes:
+      - ./config:/app/config
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: "\${HOMEPAGE_ALLOWED_HOSTS:-localhost:3000}"
+      PUID: "\${PUID:-1000}"
+      PGID: "\${PGID:-1000}"
+`,
+    },
+    {
+      path: '.env.example',
+      content: `HOMEPAGE_PORT=3000
+HOMEPAGE_ALLOWED_HOSTS=localhost:3000
+PUID=1000
+PGID=1000
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Homepage Launchpack
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+docker compose up -d
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:3000.
+
+## Operations
+
+- Upgrade: \`docker compose pull && docker compose up -d\`
+- Stop: \`docker compose down\`
+- Config lives in \`./config\`.
+- Set \`HOMEPAGE_ALLOWED_HOSTS\` to your production domain, including port if needed.
+- Docker socket integration is intentionally not enabled by default. Add it only if you understand the host-access implications.
+`,
+    },
+    {
+      path: 'config/settings.yaml',
+      content: `title: OSS Launchpack
+theme: dark
+color: slate
+`,
+    },
+    {
+      path: 'config/services.yaml',
+      content: `- Launchpacks:
+    - OSS Launchpack:
+        href: https://github.com/shreyas-shinde/oss-launchpack
+        description: Production-minded self-hosted app launchpacks
+`,
+    },
+    {
+      path: 'config/bookmarks.yaml',
+      content: `- Documentation:
+    - Homepage:
+        - abbr: HP
+          href: https://gethomepage.dev/
+`,
+    },
+    {
+      path: 'config/widgets.yaml',
+      content: `- resources:
+    cpu: true
+    memory: true
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+APP_URL="\${APP_URL:-http://localhost:3000}"
+curl -fsS "$APP_URL" >/dev/null
+echo "Homepage is reachable at $APP_URL"
+`,
+    },
+  ],
+}
+
+export const launchpacks = [
+  openWebUi,
+  n8n,
+  memos,
+  uptimeKuma,
+  homepage,
+] as const satisfies readonly Launchpack[]
 
 export function listLaunchpacks(): readonly Launchpack[] {
   return launchpacks

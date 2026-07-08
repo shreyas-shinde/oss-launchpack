@@ -8,7 +8,8 @@ import { generateLaunchpack } from '../src/generator.js'
 
 test('catalog exposes the initial managed-deployment wedges', () => {
   const ids = listLaunchpacks().map((pack) => pack.id)
-  assert.deepEqual(ids, ['open-webui', 'n8n', 'memos'])
+  assert.deepEqual(ids, ['open-webui', 'n8n', 'memos', 'uptime-kuma', 'homepage'])
+  assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
 })
 
 test('generates a launchpack without overwriting by default', async () => {
@@ -28,6 +29,19 @@ test('generates a launchpack without overwriting by default', async () => {
     () => generateLaunchpack('open-webui', dir),
     /Refusing to overwrite existing file/,
   )
+})
+
+test('generates Homepage starter config files', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('homepage', dir)
+
+  assert.equal(result.pack.id, 'homepage')
+
+  const compose = await readFile(path.join(dir, 'compose.yaml'), 'utf8')
+  assert.match(compose, /HOMEPAGE_ALLOWED_HOSTS/)
+
+  const services = await readFile(path.join(dir, 'config/services.yaml'), 'utf8')
+  assert.match(services, /OSS Launchpack/)
 })
 
 test('force mode regenerates an existing launchpack', async () => {

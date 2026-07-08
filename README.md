@@ -55,6 +55,8 @@ multi-customer use.
 | `open-webui` | AI interface | <https://github.com/open-webui/open-webui> | Private AI chat hosting, model routing, upgrades |
 | `n8n` | Automation | <https://github.com/n8n-io/n8n> | Customer-owned/internal deployments, backups, upgrade support |
 | `memos` | Personal knowledge | <https://github.com/usememos/memos> | Private notes hosting, backups, custom domains |
+| `uptime-kuma` | Monitoring | <https://github.com/louislam/uptime-kuma> | Monitor setup, notification channels, incident routing |
+| `homepage` | Dashboard | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
 
 ## Install From Source
 
