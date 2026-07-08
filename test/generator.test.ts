@@ -64,6 +64,8 @@ test('contribution guide documents launchpack requirements', async () => {
   assert.match(guide, /stops n8n while Postgres is restored/)
   assert.match(guide, /scripts\/validate-supabase-backup-restore\.sh/)
   assert.match(guide, /known `public` schema row/)
+  assert.match(guide, /scripts\/validate-dify-backup-restore\.sh/)
+  assert.match(guide, /main and plugin/)
 })
 
 test('generates a launchpack without overwriting by default', async () => {
@@ -143,6 +145,23 @@ test('Supabase backup restore validator is repeatable shell', async () => {
   assert.match(content, /supabase-public-schema\.sql/)
   assert.match(content, /oss_launchpack_validation/)
   assert.match(content, /KEEP_SUPABASE_VALIDATION/)
+
+  const scriptStat = await stat(script)
+  assert.equal((scriptStat.mode & 0o111) > 0, true)
+})
+
+test('Dify backup restore validator is repeatable shell', async () => {
+  const script = 'scripts/validate-dify-backup-restore.sh'
+  await execFileAsync('sh', ['-n', script])
+
+  const content = await readFile(script, 'utf8')
+  assert.match(content, /DIFY_SOURCE_REF/)
+  assert.match(content, /docker compose -f docker-compose\.yaml up -d/)
+  assert.match(content, /dify-main-database\.sql/)
+  assert.match(content, /dify-plugin-database\.sql/)
+  assert.match(content, /oss_launchpack_validation/)
+  assert.match(content, /oss_launchpack_plugin_validation/)
+  assert.match(content, /KEEP_DIFY_VALIDATION/)
 
   const scriptStat = await stat(script)
   assert.equal((scriptStat.mode & 0o111) > 0, true)
@@ -310,15 +329,25 @@ test('generates a Dify wrapper around the official Docker setup', async () => {
   assert.match(healthcheck, /docker compose ps/)
 
   const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
-  assert.match(backup, /dify-pg_dumpall\.sql/)
+  assert.match(backup, /dify-main-database\.sql/)
+  assert.match(backup, /dify-plugin-database\.sql/)
+  assert.match(backup, /pg_dump --clean --if-exists/)
+  assert.match(backup, /read_env_file_value/)
   assert.match(backup, /dify-config\.tar\.gz/)
   assert.match(backup, /dify-local-state\.tar\.gz/)
   assert.match(backup, /volumes\/plugin_daemon/)
   assert.match(backup, /volumes\/weaviate/)
+  assert.doesNotMatch(backup, /\. "\$DIFY_PROJECT_DIR\/\.env"/)
 
   const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
-  assert.match(restore, /dify-pg_dumpall\.sql/)
+  assert.match(restore, /dify-main-database\.sql/)
+  assert.match(restore, /dify-plugin-database\.sql/)
+  assert.match(restore, /docker compose ps --services --filter status=running/)
+  assert.match(restore, /psql -U "\$DIFY_DB_USERNAME" -d "\$DIFY_DB_DATABASE"/)
+  assert.match(restore, /docker compose up -d\)/)
   assert.match(restore, /dify-local-state\.tar\.gz/)
+  assert.match(restore, /read_env_file_value/)
+  assert.doesNotMatch(restore, /\. "\$DIFY_PROJECT_DIR\/\.env"/)
 
   const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
   assert.match(manifest, /"pack": "dify"/)

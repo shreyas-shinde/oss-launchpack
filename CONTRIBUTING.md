@@ -155,3 +155,19 @@ scripts/validate-supabase-backup-restore.sh
 Set `KEEP_SUPABASE_VALIDATION=1` to leave the generated stack in place for
 manual inspection. Otherwise the script removes its containers and volumes
 before it exits.
+
+The Dify smoke test generates `tmp/dify`, installs the official Docker stack,
+starts it on test-only ports, writes known rows into the main and plugin
+Postgres databases, writes local app-storage and plugin-storage markers, backs
+them up, deletes all markers, restores them, and verifies the Dify gateway is
+reachable. Dify's official `worker_beat` service does not currently define a
+Compose healthcheck, so the validator starts the stack without `--wait` and then
+polls the gateway and Postgres directly:
+
+```bash
+scripts/validate-dify-backup-restore.sh
+```
+
+Set `KEEP_DIFY_VALIDATION=1` to leave the generated stack in place for manual
+inspection. Otherwise the script removes its containers and volumes before it
+exits.
