@@ -21,6 +21,7 @@ test('catalog exposes the operations-ready wedges', () => {
     'posthog',
     'grafana',
     'clickhouse',
+    'qdrant',
     'outline',
     'supabase',
     'dify',
@@ -349,6 +350,58 @@ test('generates a ClickHouse launchpack with native backup disk', async () => {
   assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
   assert.match(manifest, /"type": "command"/)
   assert.match(manifest, /clickhouse:\/\/localhost:9000/)
+})
+
+test('generates a Qdrant launchpack with durable storage and snapshots', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('qdrant', dir)
+
+  assert.equal(result.pack.id, 'qdrant')
+
+  const compose = await readFile(path.join(dir, 'compose.yaml'), 'utf8')
+  assert.match(compose, /qdrant\/qdrant:\$\{QDRANT_VERSION:-latest\}/)
+  assert.match(compose, /\$\{QDRANT_HTTP_PORT:-6333\}:6333/)
+  assert.match(compose, /\$\{QDRANT_GRPC_PORT:-6334\}:6334/)
+  assert.match(compose, /qdrant-storage:\/qdrant\/storage/)
+  assert.match(compose, /qdrant-snapshots:\/qdrant\/snapshots/)
+  assert.match(compose, /\.\/config\/production\.yaml:\/qdrant\/config\/production\.yaml:ro/)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /QDRANT_VERSION=latest/)
+  assert.match(env, /QDRANT_URL=http:\/\/localhost:6333/)
+
+  const config = await readFile(path.join(dir, 'config/production.yaml'), 'utf8')
+  assert.match(config, /snapshots_path: \/qdrant\/snapshots/)
+  assert.match(config, /service\.api_key/)
+  assert.match(config, /#   api_key:/)
+  assert.match(config, /#   read_only_api_key:/)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /Qdrant Cloud/)
+  assert.match(readme, /TLS/)
+  assert.match(readme, /Stop writes before restoring/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /backup_mount 'qdrant' '\/qdrant\/storage' 'qdrant-storage\.tar\.gz'/)
+  assert.match(
+    backup,
+    /backup_mount 'qdrant' '\/qdrant\/snapshots' 'qdrant-snapshots\.tar\.gz'/,
+  )
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /restore_mount 'qdrant' '\/qdrant\/storage' 'qdrant-storage\.tar\.gz'/)
+  assert.match(
+    restore,
+    /restore_mount 'qdrant' '\/qdrant\/snapshots' 'qdrant-snapshots\.tar\.gz'/,
+  )
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /\/healthz/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "qdrant"/)
+  assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
+  assert.match(manifest, /"id": "qdrant-snapshots"/)
 })
 
 test('generates an Outline launchpack with auth and durable storage guidance', async () => {

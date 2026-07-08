@@ -14,7 +14,7 @@ upstream deployment instead of generating a stale copy of its Compose file.
 ## Why This
 
 Current GitHub momentum is concentrated around self-hosted AI, automation, and
-personal-data apps. Examples include Open WebUI, n8n, Dify, Ollama, Memos,
+personal-data apps. Examples include Open WebUI, n8n, Dify, Qdrant, Ollama, Memos,
 Immich, Coolify, and Dokploy. The common pain is not discovering the app; it is
 running it safely with domains, secrets, backups, upgrades, monitoring, and
 incident response.
@@ -49,6 +49,7 @@ multi-customer use.
 | `posthog` | Product analytics | `official-stack-heavy` | `customer-owned-only` | <https://github.com/PostHog/posthog> | Customer-owned hobby deployment, backups, upgrade support |
 | `grafana` | Observability | `single-node` | `customer-owned-only` | <https://github.com/grafana/grafana> | Postgres-backed dashboards, provisioning, plugin and upgrade support |
 | `clickhouse` | Analytics database | `single-node-heavy` | `permissive-hosting-fit` | <https://github.com/ClickHouse/ClickHouse> | Native database backups, config/users, storage-heavy upgrade support |
+| `qdrant` | Vector database | `single-node-heavy` | `permissive-hosting-fit` | <https://github.com/qdrant/qdrant> | Vector storage, snapshots, API-key/TLS hardening, AI search workloads |
 | `outline` | Team knowledge | `single-node` | `customer-owned-only` | <https://github.com/outline/outline> | Customer-owned team wiki, SSO/OIDC setup, backups |
 | `supabase` | Backend platform | `official-stack-heavy` | `permissive-hosting-fit` | <https://github.com/supabase/supabase/tree/master/docker> | Official Docker stack wrapper, public schema, Storage metadata/files, functions backup boundaries |
 | `dify` | AI application platform | `official-stack-heavy` | `upstream-agreement-required` | <https://github.com/langgenius/dify/tree/main/docker> | Official Docker stack wrapper, Postgres/storage/plugin/vector backup boundaries |

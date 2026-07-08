@@ -1343,6 +1343,151 @@ echo "ClickHouse is reachable through the native client; HTTP is mapped at $APP_
   ],
 }
 
+const qdrant: Launchpack = {
+  id: 'qdrant',
+  name: 'Qdrant',
+  category: 'Vector database',
+  upstream: 'https://github.com/qdrant/qdrant',
+  defaultPort: 6333,
+  supportModel: 'permissive-hosting-fit',
+  whyNow:
+    'AI apps increasingly need a production vector store, and Qdrant is a popular Apache-2.0 vector database with an official Docker image and managed cloud path.',
+  operationsFit:
+    'Qdrant operations need durable vector storage, snapshot handling, API-key/TLS hardening, upgrade discipline, and restore checks for RAG/search workloads.',
+  licenseNote:
+    'Qdrant is Apache-2.0 licensed. Preserve upstream notices and trademarks, and do not present this launchpack as Qdrant Cloud or official Qdrant support.',
+  sizing: {
+    tier: 'single-node-heavy',
+    minimumCpuCores: 2,
+    minimumMemoryGb: 4,
+    storage:
+      '20 GB+ for small vector workloads; plan capacity around vector count, dimensions, payload indexes, snapshots, and compaction overhead.',
+    scaling:
+      'Start with one node for small RAG/search workloads. Move to Qdrant Cloud, Hybrid Cloud, Kubernetes, or a deliberately planned cluster before high-availability workloads.',
+    notes: [
+      'Vector dimensions, payload indexes, quantization, and write volume dominate CPU, RAM, and disk needs.',
+      'Snapshots are written to /qdrant/snapshots in this pack, but volume backups should still stop writes before restore.',
+      'Enable an API key and TLS or a trusted reverse proxy before exposing Qdrant outside a private network.',
+    ],
+  },
+  operations: {
+    healthcheckUrl: 'http://localhost:6333/healthz',
+    backupTargets: [
+      {
+        type: 'mount',
+        id: 'qdrant-storage',
+        service: 'qdrant',
+        path: '/qdrant/storage',
+        description: 'Qdrant collections, segments, payload indexes, and service state.',
+      },
+      {
+        type: 'mount',
+        id: 'qdrant-snapshots',
+        service: 'qdrant',
+        path: '/qdrant/snapshots',
+        description: 'Qdrant local snapshot files used for collection recovery and migrations.',
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: [
+        'Back up storage and snapshots before changing Qdrant versions.',
+        'Review Qdrant release notes for storage, snapshot, and distributed-mode changes before major upgrades.',
+        'Avoid writes during restore; restore volume state before restarting application traffic that depends on vectors.',
+        'Keep API keys, TLS, and reverse-proxy configuration consistent across upgrades.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: 'compose.yaml',
+      content: `services:
+  qdrant:
+    image: qdrant/qdrant:\${QDRANT_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "\${QDRANT_HTTP_PORT:-6333}:6333"
+      - "\${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant-storage:/qdrant/storage
+      - qdrant-snapshots:/qdrant/snapshots
+      - ./config/production.yaml:/qdrant/config/production.yaml:ro
+
+volumes:
+  qdrant-storage:
+  qdrant-snapshots:
+`,
+    },
+    {
+      path: '.env.example',
+      content: `QDRANT_VERSION=latest
+QDRANT_HTTP_PORT=6333
+QDRANT_GRPC_PORT=6334
+QDRANT_URL=http://localhost:6333
+`,
+    },
+    {
+      path: 'config/production.yaml',
+      content: `storage:
+  snapshots_path: /qdrant/snapshots
+
+# Enable a service.api_key before exposing Qdrant outside a private network.
+# Pair API keys with TLS or a trusted reverse proxy.
+# Example:
+# service:
+#   api_key: replace-with-a-long-random-secret
+#   read_only_api_key: replace-with-a-long-random-readonly-secret
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Qdrant Launchpack
+
+This pack runs the official Qdrant Docker image with persistent storage,
+separate local snapshots, a generated operations manifest, and explicit
+security/restore notes for self-hosted vector search workloads.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+docker compose up -d
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:6333/dashboard for the local dashboard, or use the REST
+API at http://localhost:6333.
+
+## Operations
+
+- Qdrant is Apache-2.0 licensed; preserve upstream notices and trademarks.
+- Qdrant Cloud is the upstream managed path. Do not present this launchpack as Qdrant Cloud or official Qdrant support.
+- Persistent vector data is stored in \`qdrant-storage\` at \`/qdrant/storage\`.
+- Local snapshots are stored in \`qdrant-snapshots\` at \`/qdrant/snapshots\`.
+- Enable API keys in \`config/production.yaml\` and put Qdrant behind TLS or a trusted reverse proxy before exposing it outside a private network.
+- Stop writes before restoring volume backups for production-like workloads.
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+APP_URL="\${APP_URL:-\${QDRANT_URL:-http://localhost:6333}}"
+curl -fsS "$APP_URL/healthz" >/dev/null
+echo "Qdrant is reachable at $APP_URL"
+`,
+    },
+  ],
+}
+
 const outline: Launchpack = {
   id: 'outline',
   name: 'Outline',
@@ -2223,6 +2368,7 @@ export const launchpacks = [
   posthog,
   grafana,
   clickhouse,
+  qdrant,
   outline,
   supabase,
   dify,
