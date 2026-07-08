@@ -171,3 +171,20 @@ scripts/validate-dify-backup-restore.sh
 Set `KEEP_DIFY_VALIDATION=1` to leave the generated stack in place for manual
 inspection. Otherwise the script removes its containers and volumes before it
 exits.
+
+The PostHog smoke test generates `tmp/posthog`, fetches the current upstream
+hobby Compose files, verifies the official service names and durable mount
+destinations still match the launchpack metadata, then starts a lightweight
+stateful harness with those same services and mount paths. It writes known
+markers into Postgres, ClickHouse, SeaweedFS, object storage, Kafka, Redis, and
+Caddy volumes, backs them up, deletes all markers, restores them, and verifies
+the markers return:
+
+```bash
+scripts/validate-posthog-backup-restore.sh
+```
+
+Set `POSTHOG_SOURCE_REF` to pin the upstream Compose files. Set
+`KEEP_POSTHOG_VALIDATION=1` to leave the generated stack in place for manual
+inspection. Otherwise the script removes its containers and volumes before it
+exits.

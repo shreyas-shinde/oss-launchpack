@@ -68,6 +68,9 @@ test('contribution guide documents launchpack requirements', async () => {
   assert.match(guide, /known `public` schema row/)
   assert.match(guide, /scripts\/validate-dify-backup-restore\.sh/)
   assert.match(guide, /main and plugin/)
+  assert.match(guide, /scripts\/validate-posthog-backup-restore\.sh/)
+  assert.match(guide, /upstream\s+hobby Compose files/)
+  assert.match(guide, /Postgres, ClickHouse, SeaweedFS, object storage, Kafka, Redis, and/)
 })
 
 test('generates a launchpack without overwriting by default', async () => {
@@ -164,6 +167,23 @@ test('Dify backup restore validator is repeatable shell', async () => {
   assert.match(content, /oss_launchpack_validation/)
   assert.match(content, /oss_launchpack_plugin_validation/)
   assert.match(content, /KEEP_DIFY_VALIDATION/)
+
+  const scriptStat = await stat(script)
+  assert.equal((scriptStat.mode & 0o111) > 0, true)
+})
+
+test('PostHog backup restore validator is repeatable shell', async () => {
+  const script = 'scripts/validate-posthog-backup-restore.sh'
+  await execFileAsync('sh', ['-n', script])
+
+  const content = await readFile(script, 'utf8')
+  assert.match(content, /POSTHOG_SOURCE_REF/)
+  assert.match(content, /docker-compose\.hobby\.yml/)
+  assert.match(content, /assert_official_service_path db \/var\/lib\/postgresql\/data/)
+  assert.match(content, /assert_official_service_path clickhouse \/var\/lib\/clickhouse/)
+  assert.match(content, /posthog-clickhouse\.tar\.gz/)
+  assert.match(content, /posthog-objectstorage\.tar\.gz/)
+  assert.match(content, /KEEP_POSTHOG_VALIDATION/)
 
   const scriptStat = await stat(script)
   assert.equal((scriptStat.mode & 0o111) > 0, true)
