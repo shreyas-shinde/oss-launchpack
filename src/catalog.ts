@@ -808,6 +808,200 @@ echo "PostHog is reachable at $APP_URL"
   ],
 }
 
+const outline: Launchpack = {
+  id: 'outline',
+  name: 'Outline',
+  category: 'Team knowledge',
+  upstream: 'https://github.com/outline/outline',
+  defaultPort: 3000,
+  supportModel: 'customer-owned-only',
+  whyNow:
+    'Teams want a self-hosted Notion/Confluence alternative, but Outline needs a correct URL, durable Postgres, Redis, file storage, auth provider setup, and careful license boundaries.',
+  managedOpportunity:
+    'Outline support should focus on customer-owned team deployments, SSO/OIDC setup, backups, upgrades, and migration help. Do not resell Outline as a multi-tenant hosted document service without an upstream commercial agreement.',
+  licenseNote:
+    'Outline is BSL-1.1 licensed. Current versions allow internal/customer-owned use but prohibit using the software for a commercial Document Service where third parties create teams and documents they control. Versions convert to Apache-2.0 on their BSL change date; review the upstream LICENSE for the exact version and date.',
+  operations: {
+    healthcheckUrl: 'http://localhost:3000',
+    backupTargets: [
+      {
+        type: 'postgres',
+        id: 'outline-postgres',
+        service: 'postgres',
+        databaseEnv: 'POSTGRES_DB',
+        userEnv: 'POSTGRES_USER',
+        description: 'Outline documents, users, collections, permissions, and application metadata.',
+      },
+      {
+        type: 'mount',
+        id: 'outline-storage',
+        service: 'outline',
+        path: '/var/lib/outline/data',
+        description: 'Local Outline attachment and image storage when FILE_STORAGE=local.',
+      },
+      {
+        type: 'mount',
+        id: 'outline-redis',
+        service: 'redis',
+        path: '/data',
+        description: 'Redis cache, collaboration, and queue state for the single-node deployment.',
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: [
+        'Pin image versions in production instead of relying on latest.',
+        'Back up Postgres and local file storage before changing the Outline image tag.',
+        'Migrations run automatically when the Outline container starts unless disabled upstream.',
+        'Keep SECRET_KEY and UTILS_SECRET stable across restores.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: 'compose.yaml',
+      content: `services:
+  outline:
+    image: docker.getoutline.com/outlinewiki/outline:\${OUTLINE_VERSION:-latest}
+    restart: unless-stopped
+    env_file: ./.env
+    ports:
+      - "\${OUTLINE_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      URL: "\${OUTLINE_URL:-http://localhost:3000}"
+      PORT: 3000
+      DATABASE_URL: "postgres://\${POSTGRES_USER:-outline}:\${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/\${POSTGRES_DB:-outline}"
+      REDIS_URL: redis://redis:6379
+      PGSSLMODE: disable
+      FILE_STORAGE: local
+      FILE_STORAGE_LOCAL_ROOT_DIR: /var/lib/outline/data
+      FORCE_HTTPS: "\${FORCE_HTTPS:-false}"
+      SECRET_KEY: "\${SECRET_KEY:?set SECRET_KEY in .env}"
+      UTILS_SECRET: "\${UTILS_SECRET:?set UTILS_SECRET in .env}"
+    volumes:
+      - storage-data:/var/lib/outline/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "\${POSTGRES_DB:-outline}"
+      POSTGRES_USER: "\${POSTGRES_USER:-outline}"
+      POSTGRES_PASSWORD: "\${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+    volumes:
+      - database-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \${POSTGRES_USER:-outline} -d \${POSTGRES_DB:-outline}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  database-data:
+  redis-data:
+  storage-data:
+`,
+    },
+    {
+      path: '.env.example',
+      content: `OUTLINE_VERSION=latest
+OUTLINE_PORT=3000
+OUTLINE_URL=http://localhost:3000
+FORCE_HTTPS=false
+
+POSTGRES_DB=outline
+POSTGRES_USER=outline
+POSTGRES_PASSWORD=replace-with-a-long-random-password
+
+# Generate with: openssl rand -hex 32
+SECRET_KEY=replace-with-a-32-byte-random-secret
+UTILS_SECRET=replace-with-a-32-byte-random-secret
+
+# Configure at least one auth provider before inviting users.
+# Generic OIDC is usually the cleanest self-hosted path.
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+OIDC_AUTH_URI=
+OIDC_TOKEN_URI=
+OIDC_USERINFO_URI=
+OIDC_LOGOUT_URI=
+OIDC_USERNAME_CLAIM=preferred_username
+OIDC_DISPLAY_NAME=OpenID Connect
+OIDC_SCOPES=openid profile email
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+SLACK_CLIENT_ID=
+SLACK_CLIENT_SECRET=
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Outline Launchpack
+
+This pack follows Outline's official Docker Compose guidance and keeps the
+operational surface explicit: Postgres, Redis, local file storage, secrets, URL,
+and authentication provider configuration.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+# Edit OUTLINE_URL, POSTGRES_PASSWORD, SECRET_KEY, UTILS_SECRET, and one auth provider.
+docker compose up -d
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:3000 for local testing, or the URL configured in \`.env\`.
+
+## Operations
+
+- Pin \`OUTLINE_VERSION\` in production so upgrades are intentional.
+- Keep \`SECRET_KEY\` and \`UTILS_SECRET\` stable. Changing them can break sessions and encrypted data.
+- Back up Postgres and \`storage-data\` before upgrades.
+- Local file storage is enabled by default. Use S3-compatible storage if you need distributed storage.
+- At least one auth provider is required for a usable installation.
+- This pack is for customer-owned deployments and professional services; do not resell Outline as a hosted document service without upstream agreement.
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+APP_URL="\${APP_URL:-\${OUTLINE_URL:-http://localhost:3000}}"
+curl -fsS "$APP_URL" >/dev/null
+echo "Outline is reachable at $APP_URL"
+`,
+    },
+  ],
+}
+
 const homepage: Launchpack = {
   id: 'homepage',
   name: 'Homepage',
@@ -939,6 +1133,7 @@ export const launchpacks = [
   uptimeKuma,
   sentry,
   posthog,
+  outline,
   homepage,
 ] as const satisfies readonly Launchpack[]
 

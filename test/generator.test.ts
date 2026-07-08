@@ -19,6 +19,7 @@ test('catalog exposes the initial managed-deployment wedges', () => {
     'uptime-kuma',
     'sentry',
     'posthog',
+    'outline',
     'homepage',
   ])
   assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
@@ -134,6 +135,35 @@ test('generates a PostHog wrapper with hobby deployment backup targets', async (
   assert.match(manifest, /"pack": "posthog"/)
   assert.match(manifest, /"supportModel": "customer-owned-only"/)
   assert.match(manifest, /"id": "posthog-clickhouse"/)
+})
+
+test('generates an Outline launchpack with auth and durable storage guidance', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('outline', dir)
+
+  assert.equal(result.files.some((file) => file.endsWith('compose.yaml')), true)
+
+  const compose = await readFile(path.join(dir, 'compose.yaml'), 'utf8')
+  assert.match(compose, /docker\.getoutline\.com\/outlinewiki\/outline/)
+  assert.match(compose, /storage-data:\/var\/lib\/outline\/data/)
+  assert.match(compose, /DATABASE_URL/)
+  assert.match(compose, /redis:6379/)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /OIDC_CLIENT_ID=/)
+  assert.match(env, /SECRET_KEY=replace-with-a-32-byte-random-secret/)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /do not resell Outline as a hosted document service/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /backup_postgres 'postgres' 'POSTGRES_USER' 'POSTGRES_DB' 'outline-postgres\.sql'/)
+  assert.match(backup, /backup_mount 'outline' '\/var\/lib\/outline\/data' 'outline-storage\.tar\.gz'/)
+  assert.match(backup, /backup_mount 'redis' '\/data' 'outline-redis\.tar\.gz'/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "outline"/)
+  assert.match(manifest, /"supportModel": "customer-owned-only"/)
 })
 
 test('generated operation scripts are valid shell syntax', async () => {

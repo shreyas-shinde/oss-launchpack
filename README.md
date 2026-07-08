@@ -62,6 +62,7 @@ multi-customer use.
 | `uptime-kuma` | Monitoring | `permissive-hosting-fit` | <https://github.com/louislam/uptime-kuma> | Monitor setup, notification channels, incident routing |
 | `sentry` | Observability | `customer-owned-only` | <https://github.com/getsentry/self-hosted> | Customer-owned self-hosted setup, backup validation, upgrade support |
 | `posthog` | Product analytics | `customer-owned-only` | <https://github.com/PostHog/posthog> | Customer-owned hobby deployment, backups, upgrade support |
+| `outline` | Team knowledge | `customer-owned-only` | <https://github.com/outline/outline> | Customer-owned team wiki, SSO/OIDC setup, backups |
 | `homepage` | Dashboard | `review-required` | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
 
 Support model meanings:
@@ -119,7 +120,7 @@ Generated packs include:
 2. Validate backup and restore flows on clean VPS hosts.
 3. Document production hardening guides for domains, TLS, updates, and monitoring.
 4. Add pack metadata for resource sizing and upgrade notes.
-5. Add flagship operations packs for Supabase, Outline, and Dify.
+5. Add flagship operations packs for Supabase and Dify.
 
 ## Development
 

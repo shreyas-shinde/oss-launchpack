@@ -28,6 +28,8 @@
     "sentry",
     "analytics",
     "posthog",
+    "knowledge-base",
+    "outline",
     "oss"
   ],
   "author": "Shreyas Shinde",

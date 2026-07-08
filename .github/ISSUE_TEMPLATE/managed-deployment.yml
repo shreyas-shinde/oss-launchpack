@@ -21,6 +21,7 @@ body:
         - Uptime Kuma
         - Sentry
         - PostHog
+        - Outline
         - Homepage
         - Other
     validations:
