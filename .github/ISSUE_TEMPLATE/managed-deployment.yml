@@ -1,14 +1,15 @@
-name: Managed deployment request
-description: Request paid setup or managed hosting for an OSS app.
-title: "Managed deployment: "
+name: Hosted deployment request
+description: Request setup or hosted maintenance help for an OSS app.
+title: "Hosted deployment: "
 labels:
   - managed-deployment
 body:
   - type: markdown
     attributes:
       value: |
-        Use this when you want help deploying and operating an OSS app.
+        Use this when you want help deploying or maintaining an OSS app.
         Do not paste secrets, API keys, passwords, or private infrastructure credentials.
+        Hosted support depends on the upstream project's current license, trademark policy, and commercial terms.
   - type: dropdown
     id: app
     attributes:
@@ -59,4 +60,6 @@ body:
       label: Safety
       options:
         - label: I did not include secrets or credentials in this issue.
+          required: true
+        - label: I understand this request may require upstream license or trademark review.
           required: true

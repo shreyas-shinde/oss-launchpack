@@ -12,6 +12,7 @@ export type Launchpack = {
   defaultPort: number
   whyNow: string
   managedOpportunity: string
+  licenseNote: string
   files: LaunchpackFile[]
 }
 
@@ -25,6 +26,8 @@ const openWebUi: Launchpack = {
     'Private AI chat is one of the clearest self-hosting pulls, but non-experts still need a sane compose file, health check, and upgrade path.',
   managedOpportunity:
     'Managed Open WebUI can bundle OAuth, model routing, backups, upgrades, and GPU/CPU hosting choices.',
+  licenseNote:
+    'Unofficial launchpack. Open WebUI uses a custom permissive license with branding protection; keep upstream branding intact and do not imply official endorsement.',
   files: [
     {
       path: 'compose.yaml',
@@ -107,7 +110,9 @@ const n8n: Launchpack = {
   whyNow:
     'Agentic workflow automation has mainstream pull, but production n8n needs durable Postgres storage and secure encryption defaults.',
   managedOpportunity:
-    'Managed n8n can sell secure provisioning, backups, webhook domain setup, upgrades, and incident response.',
+    'n8n support should focus on customer-owned/internal deployments unless a separate upstream commercial agreement allows hosted or embedded access.',
+  licenseNote:
+    'n8n is fair-code under the Sustainable Use License and Enterprise License. Do not resell hosted n8n access, white-label n8n, or embed it for customers without confirming the required n8n agreement.',
   files: [
     {
       path: 'compose.yaml',
@@ -212,6 +217,8 @@ const memos: Launchpack = {
     'Personal knowledge tools are growing with the broader self-hosted movement, and Memos has a simple operational shape for new self-hosters.',
   managedOpportunity:
     'Managed Memos can sell private hosting, automatic backups, custom domains, and low-friction import/export.',
+  licenseNote:
+    'Memos is MIT-licensed upstream; preserve upstream copyright and license notices.',
   files: [
     {
       path: 'compose.yaml',

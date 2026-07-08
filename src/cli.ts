@@ -67,6 +67,9 @@ Category: ${pack.category}
 Upstream: ${pack.upstream}
 Default port: ${pack.defaultPort}
 
+License/commercial-use note:
+${pack.licenseNote}
+
 Why now:
 ${pack.whyNow}
 

@@ -28,6 +28,19 @@ export async function generateLaunchpack(
   const files = [
     ...pack.files,
     {
+      path: 'UPSTREAM.md',
+      content: `# Upstream and License Notes
+
+This launchpack is maintained by OSS Launchpack and is not an official upstream distribution.
+
+- App: ${pack.name}
+- Upstream: ${pack.upstream}
+- License/commercial-use note: ${pack.licenseNote}
+
+Review the upstream project's current license, trademark policy, and commercial terms before offering this app as a hosted service or embedding it in another product.
+`,
+    },
+    {
       path: '.launchpack.json',
       content: JSON.stringify(
         {
@@ -35,6 +48,7 @@ export async function generateLaunchpack(
           pack: pack.id,
           name: pack.name,
           upstream: pack.upstream,
+          licenseNote: pack.licenseNote,
           generatedBy: 'oss-launchpack',
         },
         null,

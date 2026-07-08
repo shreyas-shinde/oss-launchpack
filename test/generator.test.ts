@@ -16,7 +16,7 @@ test('generates a launchpack without overwriting by default', async () => {
   const result = await generateLaunchpack('open-webui', dir)
 
   assert.equal(result.pack.id, 'open-webui')
-  assert.equal(result.files.length, 5)
+  assert.equal(result.files.length, 6)
 
   const compose = await readFile(path.join(dir, 'compose.yaml'), 'utf8')
   assert.match(compose, /ghcr\.io\/open-webui\/open-webui:main/)
@@ -37,5 +37,10 @@ test('force mode regenerates an existing launchpack', async () => {
 
   const manifest = await readFile(path.join(dir, '.launchpack.json'), 'utf8')
   assert.match(manifest, /"pack": "memos"/)
+  assert.match(manifest, /"licenseNote": "Memos is MIT-licensed upstream/)
+
+  const upstream = await readFile(path.join(dir, 'UPSTREAM.md'), 'utf8')
+  assert.match(upstream, /Upstream and License Notes/)
+  assert.match(upstream, /MIT-licensed upstream/)
   assert.equal(result.pack.name, 'Memos')
 })
