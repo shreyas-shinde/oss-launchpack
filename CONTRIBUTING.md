@@ -116,3 +116,21 @@ launchpack files.
   `docker compose config` in the installed official directory.
 - README catalog and roadmap entries stay current.
 - Public docs stay contributor-facing and avoid private project strategy.
+
+## Real Backup/Restore Checks
+
+Shell syntax tests do not prove a backup can restore real state. When changing
+backup or restore behavior, run a real smoke test for an affected pack.
+
+The n8n smoke test generates `tmp/n8n`, starts the Compose stack with test-only
+secrets, writes a known Postgres row and n8n volume marker, backs them up,
+destroys the volumes, stops n8n while Postgres is restored, restores both
+targets, restarts n8n, and verifies both markers return:
+
+```bash
+scripts/validate-n8n-backup-restore.sh
+```
+
+Set `KEEP_N8N_VALIDATION=1` to leave the generated stack in place for manual
+inspection. Otherwise the script removes its containers and volumes before it
+exits.

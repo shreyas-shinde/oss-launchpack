@@ -48,6 +48,8 @@ test('contribution guide documents launchpack requirements', async () => {
   assert.match(guide, /License and Trademark Checklist/)
   assert.match(guide, /pnpm check/)
   assert.match(guide, /Keep private business strategy out of public issues/)
+  assert.match(guide, /scripts\/validate-n8n-backup-restore\.sh/)
+  assert.match(guide, /stops n8n while Postgres is restored/)
 })
 
 test('generates a launchpack without overwriting by default', async () => {
@@ -89,11 +91,28 @@ test('generates database backup and restore scripts for Postgres-backed packs', 
 
   const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
   assert.match(restore, /restore_postgres 'postgres' 'POSTGRES_USER' 'POSTGRES_DB' 'n8n-postgres\.sql'/)
+  assert.match(restore, /DROP SCHEMA IF EXISTS public CASCADE/)
+  assert.match(restore, /compose ps -a -q/)
   assert.match(restore, /psql -U/)
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /\. \.\/\.env/)
+  assert.match(healthcheck, /N8N_PORT:-5678/)
 
   const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
   assert.match(manifest, /"schema": "oss-launchpack\/ops\/v1"/)
   assert.match(manifest, /"type": "postgres"/)
+})
+
+test('n8n backup restore validator is repeatable shell', async () => {
+  const script = 'scripts/validate-n8n-backup-restore.sh'
+  await execFileAsync('sh', ['-n', script])
+
+  const content = await readFile(script, 'utf8')
+  assert.match(content, /docker compose stop n8n/)
+
+  const scriptStat = await stat(script)
+  assert.equal((scriptStat.mode & 0o111) > 0, true)
 })
 
 test('generates a Sentry wrapper around the official self-hosted repository', async () => {

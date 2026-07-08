@@ -295,7 +295,13 @@ Open http://localhost:5678.
       content: `#!/usr/bin/env sh
 set -eu
 
-APP_URL="\${APP_URL:-http://localhost:5678/healthz}"
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+APP_URL="\${APP_URL:-\${N8N_PROTOCOL:-http}://\${N8N_HOST:-localhost}:\${N8N_PORT:-5678}/healthz}"
 curl -fsS "$APP_URL" >/dev/null
 echo "n8n is reachable at $APP_URL"
 `,

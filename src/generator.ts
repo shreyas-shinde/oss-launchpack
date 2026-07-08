@@ -183,6 +183,10 @@ CONFIRM_RESTORE=yes ./ops/restore.sh ./backups/<timestamp>
 \`\`\`
 
 Stop write-heavy app traffic before restoring production data.
+For Postgres-backed apps, stop application services that write to the database
+while keeping the database service available for the restore.
+PostgreSQL restores reset the target database's \`public\` schema before loading
+the dump, so only run them against the intended restore target.
 
 ## Upgrade
 
@@ -341,9 +345,9 @@ restore_mount() {
     exit 1
   fi
 
-  container_id="$(compose ps -q "$service")"
+  container_id="$(compose ps -a -q "$service" | head -n 1)"
   if [ -z "$container_id" ]; then
-    echo "Service $service is not running. Start the stack before restoring mount $destination." >&2
+    echo "Service $service does not have a container. Create the stack before restoring mount $destination." >&2
     exit 1
   fi
 
@@ -371,6 +375,7 @@ restore_postgres() {
     exit 1
   fi
 
+  compose exec -T "$service" sh -lc "db=\\$(printenv $database_env || true); user=\\$(printenv $user_env || true); PGPASSWORD=\\"\\\${POSTGRES_PASSWORD:-}\\" psql -U \\"\\\${user:-postgres}\\" -d \\"\\\${db:-postgres}\\" -v ON_ERROR_STOP=1 -c \\"DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;\\""
   compose exec -T "$service" sh -lc "db=\\$(printenv $database_env || true); user=\\$(printenv $user_env || true); PGPASSWORD=\\"\\\${POSTGRES_PASSWORD:-}\\" psql -U \\"\\\${user:-postgres}\\" -d \\"\\\${db:-postgres}\\" -v ON_ERROR_STOP=1" < "$BACKUP_DIR_ABS/$input"
 }
 
