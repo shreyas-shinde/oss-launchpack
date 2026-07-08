@@ -33,6 +33,23 @@ test('catalog exposes the operations-ready wedges', () => {
   )
 })
 
+test('contribution guide documents launchpack requirements', async () => {
+  const guide = await readFile('CONTRIBUTING.md', 'utf8')
+  const readme = await readFile('README.md', 'utf8')
+
+  assert.match(readme, /CONTRIBUTING\.md/)
+  assert.match(guide, /supportModel/)
+  assert.match(guide, /licenseNote/)
+  assert.match(guide, /operations\.healthcheckUrl/)
+  assert.match(guide, /operations\.backupTargets/)
+  assert.match(guide, /operations\.upgrade/)
+  assert.match(guide, /Use `mount`/)
+  assert.match(guide, /Use `postgres`/)
+  assert.match(guide, /License and Trademark Checklist/)
+  assert.match(guide, /pnpm check/)
+  assert.match(guide, /Keep private business strategy out of public issues/)
+})
+
 test('generates a launchpack without overwriting by default', async () => {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
   const result = await generateLaunchpack('open-webui', dir)

@@ -118,6 +118,8 @@ pnpm check
 
 `pnpm check` builds the TypeScript project and runs the Node test suite.
 
+New launchpacks should follow [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## License
 
 MIT
