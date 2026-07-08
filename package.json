@@ -47,6 +47,10 @@
     "temporal",
     "workflow-orchestration",
     "durable-execution",
+    "keycloak",
+    "identity",
+    "oidc",
+    "sso",
     "oss"
   ],
   "author": "Shreyas Shinde",

@@ -3056,6 +3056,247 @@ echo "Temporal Frontend is reachable inside the temporal container on port 7233"
   ],
 }
 
+const keycloak: Launchpack = {
+  id: 'keycloak',
+  name: 'Keycloak',
+  category: 'Identity and access management',
+  upstream: 'https://github.com/keycloak/keycloak',
+  defaultPort: 8080,
+  supportModel: 'permissive-hosting-fit',
+  whyNow:
+    'Identity is becoming core app infrastructure again as teams self-host internal tools, AI apps, and customer portals that need OIDC, SAML, realms, clients, and recovery plans.',
+  operationsFit:
+    'Keycloak operations need a production-mode container, explicit hostname/proxy settings, Postgres-backed state, private health/metrics access, and restore guidance that does not overstate realm JSON exports.',
+  licenseNote:
+    'Keycloak is Apache-2.0 licensed. Preserve upstream notices and trademarks, and do not imply official Keycloak support or affiliation.',
+  sizing: {
+    tier: 'single-node',
+    minimumCpuCores: 2,
+    minimumMemoryGb: 4,
+    storage:
+      '20 GB+ for Postgres realm, user, client, session, and event data; increase for audit/event retention and high login volume.',
+    scaling:
+      'Start with one Keycloak node and Postgres. For HA, move Postgres to managed or clustered infrastructure and run multiple Keycloak nodes behind a trusted reverse proxy/load balancer.',
+    notes: [
+      'Use production `start`, not `start-dev`, for real deployments.',
+      'Keycloak requires an explicit hostname by default; set it before exposing users.',
+      'Keep the management port private because it exposes health and metrics endpoints.',
+      'Realm JSON export/import is supplemental. Postgres plus secrets/config is the primary recovery boundary.',
+    ],
+  },
+  operations: {
+    healthcheckUrl: 'http://127.0.0.1:9000/health/ready',
+    backupTargets: [
+      {
+        type: 'command',
+        id: 'keycloak-postgres-state',
+        description:
+          'Postgres-backed Keycloak realm/user/client/session state plus local Compose, image build, realm, theme, provider, and .env configuration.',
+        backupCommands: [
+          'KEYCLOAK_ENV_FILE="${KEYCLOAK_ENV_FILE:-.env}"',
+          'KEYCLOAK_DB="$(read_env_file_value "$KEYCLOAK_ENV_FILE" KEYCLOAK_DB || true)"',
+          'KEYCLOAK_DB_USER="$(read_env_file_value "$KEYCLOAK_ENV_FILE" KEYCLOAK_DB_USER || true)"',
+          'KEYCLOAK_DB_PASSWORD="$(read_env_file_value "$KEYCLOAK_ENV_FILE" KEYCLOAK_DB_PASSWORD || true)"',
+          'KEYCLOAK_DB="${KEYCLOAK_DB:-keycloak}"',
+          'KEYCLOAK_DB_USER="${KEYCLOAK_DB_USER:-keycloak}"',
+          'if [ -z "$KEYCLOAK_DB_PASSWORD" ]; then echo "Missing KEYCLOAK_DB_PASSWORD in $KEYCLOAK_ENV_FILE." >&2; exit 1; fi',
+          'if [ -f "$KEYCLOAK_ENV_FILE" ]; then cp "$KEYCLOAK_ENV_FILE" "$BACKUP_DIR_ABS/keycloak.env"; chmod 600 "$BACKUP_DIR_ABS/keycloak.env"; fi',
+          'config_paths=""',
+          'for path in compose.yaml Containerfile realms themes providers; do if [ -e "$path" ]; then config_paths="$config_paths $path"; fi; done',
+          'if [ -n "$config_paths" ]; then tar -czf "$BACKUP_DIR_ABS/keycloak-config.tar.gz" $config_paths; fi',
+          'compose stop keycloak >/dev/null || true',
+          'compose exec -T postgres env PGPASSWORD="$KEYCLOAK_DB_PASSWORD" pg_dump --clean --if-exists -U "$KEYCLOAK_DB_USER" "$KEYCLOAK_DB" > "$BACKUP_DIR_ABS/keycloak-postgres.sql"',
+          'compose up -d keycloak',
+        ],
+        restoreCommands: [
+          'if [ ! -f "$BACKUP_DIR_ABS/keycloak-postgres.sql" ]; then echo "Missing dump: $BACKUP_DIR_ABS/keycloak-postgres.sql" >&2; exit 1; fi',
+          'if [ -f "$BACKUP_DIR_ABS/keycloak-config.tar.gz" ]; then tar -xzf "$BACKUP_DIR_ABS/keycloak-config.tar.gz"; fi',
+          'if [ -f "$BACKUP_DIR_ABS/keycloak.env" ]; then cp "$BACKUP_DIR_ABS/keycloak.env" .env; chmod 600 .env; fi',
+          'KEYCLOAK_ENV_FILE="${KEYCLOAK_ENV_FILE:-.env}"',
+          'KEYCLOAK_DB="$(read_env_file_value "$KEYCLOAK_ENV_FILE" KEYCLOAK_DB || true)"',
+          'KEYCLOAK_DB_USER="$(read_env_file_value "$KEYCLOAK_ENV_FILE" KEYCLOAK_DB_USER || true)"',
+          'KEYCLOAK_DB_PASSWORD="$(read_env_file_value "$KEYCLOAK_ENV_FILE" KEYCLOAK_DB_PASSWORD || true)"',
+          'KEYCLOAK_DB="${KEYCLOAK_DB:-keycloak}"',
+          'KEYCLOAK_DB_USER="${KEYCLOAK_DB_USER:-keycloak}"',
+          'if [ -z "$KEYCLOAK_DB_PASSWORD" ]; then echo "Missing KEYCLOAK_DB_PASSWORD in $KEYCLOAK_ENV_FILE." >&2; exit 1; fi',
+          'compose up -d postgres',
+          'attempt=0; while [ "$attempt" -lt 60 ]; do if compose exec -T postgres pg_isready -U "$KEYCLOAK_DB_USER" -d "$KEYCLOAK_DB" >/dev/null 2>&1; then break; fi; attempt=$((attempt + 1)); sleep 1; done; if [ "$attempt" -ge 60 ]; then echo "Timed out waiting for Keycloak Postgres." >&2; exit 1; fi',
+          'compose stop keycloak >/dev/null || true',
+          'compose exec -T postgres env PGPASSWORD="$KEYCLOAK_DB_PASSWORD" psql -U "$KEYCLOAK_DB_USER" -d "$KEYCLOAK_DB" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;"',
+          'compose exec -T postgres env PGPASSWORD="$KEYCLOAK_DB_PASSWORD" psql -U "$KEYCLOAK_DB_USER" -d "$KEYCLOAK_DB" -v ON_ERROR_STOP=1 < "$BACKUP_DIR_ABS/keycloak-postgres.sql"',
+          'compose up -d',
+        ],
+      },
+    ],
+    upgrade: {
+      command: 'docker compose build --pull keycloak && docker compose up -d',
+      notes: [
+        'Back up Postgres and local config before changing KEYCLOAK_VERSION.',
+        'Review Keycloak migration notes before major upgrades; schema changes happen on server start.',
+        'Keep KC_HOSTNAME, reverse-proxy headers, TLS termination, and public URLs consistent before login traffic reaches the instance.',
+        'Do not proxy the management port publicly; health and metrics should stay on localhost or a private monitoring network.',
+        'Change the bootstrap admin password after first login and use normal admin users/groups afterward.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: 'Containerfile',
+      content: `ARG KEYCLOAK_VERSION=latest
+FROM quay.io/keycloak/keycloak:\${KEYCLOAK_VERSION} AS builder
+
+ENV KC_HEALTH_ENABLED=true
+ENV KC_METRICS_ENABLED=true
+ENV KC_DB=postgres
+
+WORKDIR /opt/keycloak
+RUN /opt/keycloak/bin/kc.sh build
+
+FROM quay.io/keycloak/keycloak:\${KEYCLOAK_VERSION}
+COPY --from=builder /opt/keycloak/ /opt/keycloak/
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]
+`,
+    },
+    {
+      path: 'compose.yaml',
+      content: `services:
+  postgres:
+    image: "postgres:\${POSTGRES_VERSION:-16-alpine}"
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "\${KEYCLOAK_DB:-keycloak}"
+      POSTGRES_USER: "\${KEYCLOAK_DB_USER:-keycloak}"
+      POSTGRES_PASSWORD: "\${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD in .env}"
+    volumes:
+      - keycloak-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  keycloak:
+    build:
+      context: .
+      dockerfile: Containerfile
+      args:
+        KEYCLOAK_VERSION: "\${KEYCLOAK_VERSION:-latest}"
+    image: "oss-launchpack-keycloak:\${KEYCLOAK_VERSION:-latest}"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["start", "--optimized"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: "jdbc:postgresql://postgres:5432/\${KEYCLOAK_DB:-keycloak}"
+      KC_DB_USERNAME: "\${KEYCLOAK_DB_USER:-keycloak}"
+      KC_DB_PASSWORD: "\${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD in .env}"
+      KC_HOSTNAME: "\${KEYCLOAK_HOSTNAME:?Set KEYCLOAK_HOSTNAME in .env}"
+      KC_HTTP_ENABLED: "\${KEYCLOAK_HTTP_ENABLED:-true}"
+      KC_PROXY_HEADERS: "\${KEYCLOAK_PROXY_HEADERS:-xforwarded}"
+      KC_BOOTSTRAP_ADMIN_USERNAME: "\${KEYCLOAK_ADMIN:-admin}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "\${KEYCLOAK_ADMIN_PASSWORD:?Set KEYCLOAK_ADMIN_PASSWORD in .env}"
+    ports:
+      - "\${KEYCLOAK_HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:\${KEYCLOAK_MANAGEMENT_PORT:-9000}:9000"
+
+volumes:
+  keycloak-postgres:
+`,
+    },
+    {
+      path: '.env.example',
+      content: `KEYCLOAK_VERSION=latest
+POSTGRES_VERSION=16-alpine
+
+KEYCLOAK_HTTP_PORT=8080
+KEYCLOAK_MANAGEMENT_PORT=9000
+KEYCLOAK_HOSTNAME=http://localhost:8080
+KEYCLOAK_HTTP_ENABLED=true
+KEYCLOAK_PROXY_HEADERS=xforwarded
+
+KEYCLOAK_DB=keycloak
+KEYCLOAK_DB_USER=keycloak
+KEYCLOAK_DB_PASSWORD=replace-with-a-long-random-db-password
+
+KEYCLOAK_ADMIN=admin
+KEYCLOAK_ADMIN_PASSWORD=replace-with-a-long-random-admin-password
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Keycloak Launchpack
+
+This pack runs Keycloak in production mode with a prebuilt optimized image,
+Postgres persistence, explicit hostname/proxy settings, bootstrap admin
+credentials, and a private management-port health check.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+# Edit KEYCLOAK_HOSTNAME, KEYCLOAK_DB_PASSWORD, and KEYCLOAK_ADMIN_PASSWORD.
+docker compose build
+docker compose up -d
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:8080 for local testing, or the public hostname configured
+in \`.env\`.
+
+## Operations
+
+- This is an unofficial Keycloak operations pack. It is not official Keycloak support and does not imply upstream affiliation.
+- Keycloak is Apache-2.0 licensed; preserve upstream notices and trademarks.
+- Do not use \`start-dev\` for production-like deployments. This pack uses \`start --optimized\`.
+- Set \`KEYCLOAK_HOSTNAME\` to the externally visible URL before real users log in.
+- If TLS terminates at a reverse proxy, keep \`KEYCLOAK_HTTP_ENABLED=true\` internally and set \`KEYCLOAK_PROXY_HEADERS\` for the forwarded header style your proxy sends.
+- Do not expose management port 9000 publicly. The generated Compose file binds it to \`127.0.0.1\` for local health and metrics access.
+- Backups use \`pg_dump\` against the Keycloak Postgres database and include local config such as \`.env\`, \`compose.yaml\`, \`Containerfile\`, and optional \`realms\`, \`themes\`, or \`providers\` directories.
+- Realm JSON import/export is useful for promotion and migration workflows, but it is not a complete backup. It can miss events, sessions, revoked tokens, and other runtime state.
+- Rotate or replace the bootstrap admin password after first login.
+- For HA, run multiple Keycloak nodes behind a trusted reverse proxy/load balancer and move Postgres to managed or clustered infrastructure.
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+KEYCLOAK_MANAGEMENT_PORT="\${KEYCLOAK_MANAGEMENT_PORT:-9000}"
+KEYCLOAK_HTTP_PORT="\${KEYCLOAK_HTTP_PORT:-8080}"
+MANAGEMENT_URL="\${MANAGEMENT_URL:-http://127.0.0.1:$KEYCLOAK_MANAGEMENT_PORT/health/ready}"
+APP_URL="\${APP_URL:-http://localhost:$KEYCLOAK_HTTP_PORT}"
+
+curl -fsS "$MANAGEMENT_URL" >/dev/null
+
+status="$(curl -sS -o /dev/null -w '%{http_code}' "$APP_URL" || true)"
+
+case "$status" in
+  2*|3*|401|403)
+    echo "Keycloak is reachable at $APP_URL with HTTP $status"
+    ;;
+  *)
+    echo "Keycloak application check failed at $APP_URL with HTTP $status" >&2
+    docker compose ps
+    exit 1
+    ;;
+esac
+
+echo "Keycloak readiness endpoint is healthy at $MANAGEMENT_URL"
+`,
+    },
+  ],
+}
+
 const homepage: Launchpack = {
   id: 'homepage',
   name: 'Homepage',
@@ -3206,6 +3447,7 @@ export const launchpacks = [
   dify,
   langfuse,
   temporal,
+  keycloak,
   homepage,
 ] as const satisfies readonly Launchpack[]
 

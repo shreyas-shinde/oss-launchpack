@@ -29,6 +29,7 @@ test('catalog exposes the operations-ready wedges', () => {
     'dify',
     'langfuse',
     'temporal',
+    'keycloak',
     'homepage',
   ])
   assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
@@ -769,6 +770,61 @@ test('generates a Temporal wrapper around the official samples-server Compose se
   assert.match(manifest, /"pack": "temporal"/)
   assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
   assert.match(manifest, /"id": "temporal-postgres-state"/)
+})
+
+test('generates a Keycloak launchpack with production-mode Postgres operations', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('keycloak', dir)
+
+  assert.equal(result.pack.id, 'keycloak')
+
+  const containerfile = await readFile(path.join(dir, 'Containerfile'), 'utf8')
+  assert.match(containerfile, /FROM quay\.io\/keycloak\/keycloak:\$\{KEYCLOAK_VERSION\}/)
+  assert.match(containerfile, /KC_HEALTH_ENABLED=true/)
+  assert.match(containerfile, /KC_METRICS_ENABLED=true/)
+  assert.match(containerfile, /KC_DB=postgres/)
+  assert.match(containerfile, /kc\.sh build/)
+
+  const compose = await readFile(path.join(dir, 'compose.yaml'), 'utf8')
+  assert.match(compose, /postgres:\$\{POSTGRES_VERSION:-16-alpine\}/)
+  assert.match(compose, /KC_DB_URL: "jdbc:postgresql:\/\/postgres:5432\/\$\{KEYCLOAK_DB:-keycloak\}"/)
+  assert.match(compose, /KC_HOSTNAME: "\$\{KEYCLOAK_HOSTNAME:\?Set KEYCLOAK_HOSTNAME in \.env\}"/)
+  assert.match(compose, /KC_PROXY_HEADERS: "\$\{KEYCLOAK_PROXY_HEADERS:-xforwarded\}"/)
+  assert.match(compose, /KC_BOOTSTRAP_ADMIN_PASSWORD/)
+  assert.match(compose, /command: \["start", "--optimized"\]/)
+  assert.match(compose, /127\.0\.0\.1:\$\{KEYCLOAK_MANAGEMENT_PORT:-9000\}:9000/)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /KEYCLOAK_HOSTNAME=http:\/\/localhost:8080/)
+  assert.match(env, /KEYCLOAK_DB_PASSWORD=replace-with-a-long-random-db-password/)
+  assert.match(env, /KEYCLOAK_ADMIN_PASSWORD=replace-with-a-long-random-admin-password/)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /not official Keycloak support/)
+  assert.match(readme, /Do not expose management port 9000 publicly/)
+  assert.match(readme, /not a complete backup/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /keycloak-postgres\.sql/)
+  assert.match(backup, /pg_dump --clean --if-exists/)
+  assert.match(backup, /compose stop keycloak/)
+  assert.match(backup, /keycloak-config\.tar\.gz/)
+  assert.match(backup, /read_env_file_value/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /keycloak-postgres\.sql/)
+  assert.match(restore, /DROP SCHEMA IF EXISTS public CASCADE/)
+  assert.match(restore, /pg_isready -U "\$KEYCLOAK_DB_USER" -d "\$KEYCLOAK_DB"/)
+  assert.match(restore, /compose stop keycloak/)
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /\/health\/ready/)
+  assert.match(healthcheck, /KEYCLOAK_MANAGEMENT_PORT/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "keycloak"/)
+  assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
+  assert.match(manifest, /"id": "keycloak-postgres-state"/)
 })
 
 test('generated operation scripts are valid shell syntax', async () => {

@@ -57,6 +57,7 @@ multi-customer use.
 | `dify` | AI application platform | `official-stack-heavy` | `upstream-agreement-required` | <https://github.com/langgenius/dify/tree/main/docker> | Official Docker stack wrapper, Postgres/storage/plugin/vector backup boundaries |
 | `langfuse` | LLM observability | `official-stack-heavy` | `customer-owned-only` | <https://github.com/langfuse/langfuse> | Official Docker Compose wrapper, Postgres, ClickHouse, Redis/Valkey, object storage backup boundaries |
 | `temporal` | Workflow orchestration | `official-stack-heavy` | `permissive-hosting-fit` | <https://github.com/temporalio/samples-server/tree/main/compose> | Official Compose wrapper, durable workflow persistence, visibility database backups |
+| `keycloak` | Identity and access management | `single-node` | `permissive-hosting-fit` | <https://github.com/keycloak/keycloak> | Postgres-backed realms/users/clients, hostname/proxy/health, restore support |
 | `homepage` | Dashboard | `tiny-vps` | `review-required` | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
 
 Support model meanings:
