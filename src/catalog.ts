@@ -2512,6 +2512,302 @@ esac
   ],
 }
 
+const langfuse: Launchpack = {
+  id: 'langfuse',
+  name: 'Langfuse',
+  category: 'LLM observability',
+  upstream: 'https://github.com/langfuse/langfuse',
+  defaultPort: 3000,
+  supportModel: 'customer-owned-only',
+  whyNow:
+    'LLM observability, prompt management, and evaluation are becoming core AI infrastructure, and Langfuse has a large self-hosted footprint with a data-heavy operational surface.',
+  operationsFit:
+    'Langfuse operations need an official-stack wrapper, secret rotation checklist, health/readiness checks, and backup boundaries across Postgres, ClickHouse, Redis/Valkey, and object storage.',
+  licenseNote:
+    'Langfuse core OSS features are MIT licensed, while enterprise features in ee paths require a Langfuse Enterprise license key. Preserve upstream notices, avoid implying Langfuse Cloud or official support, and keep this pack focused on customer-owned self-hosted deployments.',
+  sizing: {
+    tier: 'official-stack-heavy',
+    minimumCpuCores: 4,
+    minimumMemoryGb: 16,
+    storage:
+      '100 GB+ for low-scale Docker Compose deployments; trace volume, ClickHouse retention, Postgres metadata, Redis queue state, and object storage dominate growth.',
+    scaling:
+      'Use the official Docker Compose setup only for local, VM, and low-scale deployments. For high availability or high throughput, follow the upstream Kubernetes, Terraform, or managed-service guidance.',
+    notes: [
+      'Langfuse Web and Worker are separate application containers and should be monitored separately.',
+      'ClickHouse stores observability data such as traces, observations, and scores.',
+      'S3/blob storage is part of the recovery boundary because incoming events and multimodal data are persisted there before processing.',
+      'ClickHouse and Postgres infrastructure should run in UTC to avoid query and reporting issues.',
+    ],
+  },
+  operations: {
+    healthcheckUrl: 'http://localhost:3000/api/public/health',
+    backupTargets: [
+      {
+        type: 'command',
+        id: 'langfuse-official-state',
+        description:
+          'Official Docker Compose state: .env/source ref, Postgres logical dump, ClickHouse data/log volumes, MinIO object storage, and Redis queue/cache data.',
+        backupCommands: [
+          'LANGFUSE_PROJECT_DIR="${LANGFUSE_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$LANGFUSE_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before backing up Langfuse." >&2; exit 1; fi',
+          'LANGFUSE_ENV_FILE="$LANGFUSE_PROJECT_DIR/.env"',
+          'LANGFUSE_POSTGRES_USER="$(read_env_file_value "$LANGFUSE_ENV_FILE" POSTGRES_USER || true)"',
+          'LANGFUSE_POSTGRES_PASSWORD="$(read_env_file_value "$LANGFUSE_ENV_FILE" POSTGRES_PASSWORD || true)"',
+          'LANGFUSE_POSTGRES_DB="$(read_env_file_value "$LANGFUSE_ENV_FILE" POSTGRES_DB || true)"',
+          'LANGFUSE_POSTGRES_USER="${LANGFUSE_POSTGRES_USER:-postgres}"',
+          'LANGFUSE_POSTGRES_PASSWORD="${LANGFUSE_POSTGRES_PASSWORD:-postgres}"',
+          'LANGFUSE_POSTGRES_DB="${LANGFUSE_POSTGRES_DB:-postgres}"',
+          'if [ -f "$LANGFUSE_ENV_FILE" ]; then cp "$LANGFUSE_ENV_FILE" "$BACKUP_DIR_ABS/langfuse.env"; chmod 600 "$BACKUP_DIR_ABS/langfuse.env"; fi',
+          'if [ -f "$LANGFUSE_PROJECT_DIR/.langfuse-source-ref" ]; then cp "$LANGFUSE_PROJECT_DIR/.langfuse-source-ref" "$BACKUP_DIR_ABS/langfuse-source-ref.txt"; fi',
+          '(cd "$LANGFUSE_PROJECT_DIR" && docker compose exec -T postgres env PGPASSWORD="$LANGFUSE_POSTGRES_PASSWORD" pg_dump --clean --if-exists -U "$LANGFUSE_POSTGRES_USER" "$LANGFUSE_POSTGRES_DB") > "$BACKUP_DIR_ABS/langfuse-postgres.sql"',
+          '(cd "$LANGFUSE_PROJECT_DIR" && docker compose stop langfuse-web langfuse-worker clickhouse redis minio >/dev/null)',
+          'container_id="$(cd "$LANGFUSE_PROJECT_DIR" && docker compose ps -a -q clickhouse | head -n 1)"',
+          'source_path="$(docker inspect "$container_id" --format "{{range .Mounts}}{{if eq .Destination \\"/var/lib/clickhouse\\"}}{{.Source}}{{end}}{{end}}")"',
+          'if [ -z "$source_path" ]; then echo "Could not find /var/lib/clickhouse mount on Langfuse clickhouse service." >&2; exit 1; fi',
+          'docker run --rm -v "$source_path:/data:ro" -v "$BACKUP_DIR_ABS:/backup" alpine:3.20 sh -c "tar -C /data -czf /backup/langfuse-clickhouse-data.tar.gz ."',
+          'source_path="$(docker inspect "$container_id" --format "{{range .Mounts}}{{if eq .Destination \\"/var/log/clickhouse-server\\"}}{{.Source}}{{end}}{{end}}")"',
+          'if [ -z "$source_path" ]; then echo "Could not find /var/log/clickhouse-server mount on Langfuse clickhouse service." >&2; exit 1; fi',
+          'docker run --rm -v "$source_path:/data:ro" -v "$BACKUP_DIR_ABS:/backup" alpine:3.20 sh -c "tar -C /data -czf /backup/langfuse-clickhouse-logs.tar.gz ."',
+          'container_id="$(cd "$LANGFUSE_PROJECT_DIR" && docker compose ps -a -q minio | head -n 1)"',
+          'source_path="$(docker inspect "$container_id" --format "{{range .Mounts}}{{if eq .Destination \\"/data\\"}}{{.Source}}{{end}}{{end}}")"',
+          'if [ -z "$source_path" ]; then echo "Could not find /data mount on Langfuse minio service." >&2; exit 1; fi',
+          'docker run --rm -v "$source_path:/data:ro" -v "$BACKUP_DIR_ABS:/backup" alpine:3.20 sh -c "tar -C /data -czf /backup/langfuse-minio-data.tar.gz ."',
+          'container_id="$(cd "$LANGFUSE_PROJECT_DIR" && docker compose ps -a -q redis | head -n 1)"',
+          'source_path="$(docker inspect "$container_id" --format "{{range .Mounts}}{{if eq .Destination \\"/data\\"}}{{.Source}}{{end}}{{end}}")"',
+          'if [ -z "$source_path" ]; then echo "Could not find /data mount on Langfuse redis service." >&2; exit 1; fi',
+          'docker run --rm -v "$source_path:/data:ro" -v "$BACKUP_DIR_ABS:/backup" alpine:3.20 sh -c "tar -C /data -czf /backup/langfuse-redis-data.tar.gz ."',
+          '(cd "$LANGFUSE_PROJECT_DIR" && docker compose up -d)',
+        ],
+        restoreCommands: [
+          'LANGFUSE_PROJECT_DIR="${LANGFUSE_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$LANGFUSE_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before restoring Langfuse." >&2; exit 1; fi',
+          'for file in langfuse-postgres.sql langfuse-clickhouse-data.tar.gz langfuse-clickhouse-logs.tar.gz langfuse-minio-data.tar.gz langfuse-redis-data.tar.gz; do if [ ! -f "$BACKUP_DIR_ABS/$file" ]; then echo "Missing Langfuse backup artifact: $BACKUP_DIR_ABS/$file" >&2; exit 1; fi; done',
+          '(cd "$LANGFUSE_PROJECT_DIR" && docker compose stop langfuse-web langfuse-worker clickhouse redis minio >/dev/null)',
+          'if [ -f "$BACKUP_DIR_ABS/langfuse.env" ]; then cp "$BACKUP_DIR_ABS/langfuse.env" "$LANGFUSE_PROJECT_DIR/.env"; chmod 600 "$LANGFUSE_PROJECT_DIR/.env"; fi',
+          'if [ -f "$BACKUP_DIR_ABS/langfuse-source-ref.txt" ]; then cp "$BACKUP_DIR_ABS/langfuse-source-ref.txt" "$LANGFUSE_PROJECT_DIR/.langfuse-source-ref"; fi',
+          'container_id="$(cd "$LANGFUSE_PROJECT_DIR" && docker compose ps -a -q clickhouse | head -n 1)"',
+          'source_path="$(docker inspect "$container_id" --format "{{range .Mounts}}{{if eq .Destination \\"/var/lib/clickhouse\\"}}{{.Source}}{{end}}{{end}}")"',
+          'docker run --rm -i -v "$source_path:/data" alpine:3.20 sh -c "set -eu; find /data -mindepth 1 -maxdepth 1 -exec rm -rf {} +; tar -C /data -xzf -" < "$BACKUP_DIR_ABS/langfuse-clickhouse-data.tar.gz"',
+          'source_path="$(docker inspect "$container_id" --format "{{range .Mounts}}{{if eq .Destination \\"/var/log/clickhouse-server\\"}}{{.Source}}{{end}}{{end}}")"',
+          'docker run --rm -i -v "$source_path:/data" alpine:3.20 sh -c "set -eu; find /data -mindepth 1 -maxdepth 1 -exec rm -rf {} +; tar -C /data -xzf -" < "$BACKUP_DIR_ABS/langfuse-clickhouse-logs.tar.gz"',
+          'container_id="$(cd "$LANGFUSE_PROJECT_DIR" && docker compose ps -a -q minio | head -n 1)"',
+          'source_path="$(docker inspect "$container_id" --format "{{range .Mounts}}{{if eq .Destination \\"/data\\"}}{{.Source}}{{end}}{{end}}")"',
+          'docker run --rm -i -v "$source_path:/data" alpine:3.20 sh -c "set -eu; find /data -mindepth 1 -maxdepth 1 -exec rm -rf {} +; tar -C /data -xzf -" < "$BACKUP_DIR_ABS/langfuse-minio-data.tar.gz"',
+          'container_id="$(cd "$LANGFUSE_PROJECT_DIR" && docker compose ps -a -q redis | head -n 1)"',
+          'source_path="$(docker inspect "$container_id" --format "{{range .Mounts}}{{if eq .Destination \\"/data\\"}}{{.Source}}{{end}}{{end}}")"',
+          'docker run --rm -i -v "$source_path:/data" alpine:3.20 sh -c "set -eu; find /data -mindepth 1 -maxdepth 1 -exec rm -rf {} +; tar -C /data -xzf -" < "$BACKUP_DIR_ABS/langfuse-redis-data.tar.gz"',
+          'LANGFUSE_ENV_FILE="$LANGFUSE_PROJECT_DIR/.env"',
+          'LANGFUSE_POSTGRES_USER="$(read_env_file_value "$LANGFUSE_ENV_FILE" POSTGRES_USER || true)"',
+          'LANGFUSE_POSTGRES_PASSWORD="$(read_env_file_value "$LANGFUSE_ENV_FILE" POSTGRES_PASSWORD || true)"',
+          'LANGFUSE_POSTGRES_DB="$(read_env_file_value "$LANGFUSE_ENV_FILE" POSTGRES_DB || true)"',
+          'LANGFUSE_POSTGRES_USER="${LANGFUSE_POSTGRES_USER:-postgres}"',
+          'LANGFUSE_POSTGRES_PASSWORD="${LANGFUSE_POSTGRES_PASSWORD:-postgres}"',
+          'LANGFUSE_POSTGRES_DB="${LANGFUSE_POSTGRES_DB:-postgres}"',
+          '(cd "$LANGFUSE_PROJECT_DIR" && docker compose up -d postgres)',
+          'attempt=0; while [ "$attempt" -lt 60 ]; do if (cd "$LANGFUSE_PROJECT_DIR" && docker compose exec -T postgres pg_isready -U "$LANGFUSE_POSTGRES_USER" >/dev/null 2>&1); then break; fi; attempt=$((attempt + 1)); sleep 1; done; if [ "$attempt" -ge 60 ]; then echo "Timed out waiting for Langfuse Postgres." >&2; exit 1; fi',
+          '(cd "$LANGFUSE_PROJECT_DIR" && docker compose exec -T postgres env PGPASSWORD="$LANGFUSE_POSTGRES_PASSWORD" psql -U "$LANGFUSE_POSTGRES_USER" -d "$LANGFUSE_POSTGRES_DB" -v ON_ERROR_STOP=1 -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;")',
+          '(cd "$LANGFUSE_PROJECT_DIR" && docker compose exec -T postgres env PGPASSWORD="$LANGFUSE_POSTGRES_PASSWORD" psql -U "$LANGFUSE_POSTGRES_USER" -d "$LANGFUSE_POSTGRES_DB" -v ON_ERROR_STOP=1) < "$BACKUP_DIR_ABS/langfuse-postgres.sql"',
+          '(cd "$LANGFUSE_PROJECT_DIR" && docker compose up -d)',
+        ],
+      },
+    ],
+    upgrade: {
+      command: './ops/install-official.sh && (cd self-hosted && docker compose up --pull always -d)',
+      notes: [
+        'Back up Postgres, ClickHouse, MinIO/blob storage, Redis, and .env before every upgrade.',
+        'Pin LANGFUSE_SOURCE_REF to a tested release for production-like deployments.',
+        'Review Langfuse release notes and migration notes before changing major versions.',
+        'The Docker Compose setup lacks high availability, horizontal scaling, and built-in backup functionality; move to Helm/Terraform or managed infrastructure when load grows.',
+        'Keep SALT, ENCRYPTION_KEY, NEXTAUTH_SECRET, database passwords, Redis auth, and object-storage credentials stable across restores.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: '.env.example',
+      content: `LANGFUSE_SOURCE_REF=latest
+LANGFUSE_PROJECT_DIR=self-hosted
+LANGFUSE_UPSTREAM_DIR=.upstream/langfuse
+LANGFUSE_HEALTH_URL=http://localhost:3000/api/public/health?failIfDatabaseUnavailable=true
+
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=replace-with-a-long-random-secret
+SALT=replace-with-a-long-random-salt
+ENCRYPTION_KEY=replace-with-64-hex-characters-from-openssl-rand-hex-32
+TELEMETRY_ENABLED=false
+
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=replace-with-a-long-random-postgres-password
+POSTGRES_DB=postgres
+DATABASE_URL=postgresql://postgres:replace-with-a-long-random-postgres-password@postgres:5432/postgres
+
+CLICKHOUSE_USER=clickhouse
+CLICKHOUSE_PASSWORD=replace-with-a-long-random-clickhouse-password
+
+REDIS_AUTH=replace-with-a-long-random-redis-password
+
+MINIO_ROOT_USER=minio
+MINIO_ROOT_PASSWORD=replace-with-a-long-random-minio-password
+LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID=minio
+LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY=replace-with-a-long-random-minio-password
+LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID=minio
+LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY=replace-with-a-long-random-minio-password
+LANGFUSE_S3_BATCH_EXPORT_ACCESS_KEY_ID=minio
+LANGFUSE_S3_BATCH_EXPORT_SECRET_ACCESS_KEY=replace-with-a-long-random-minio-password
+
+LANGFUSE_S3_EVENT_UPLOAD_BUCKET=langfuse
+LANGFUSE_S3_MEDIA_UPLOAD_BUCKET=langfuse
+LANGFUSE_S3_BATCH_EXPORT_BUCKET=langfuse
+LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT=http://minio:9000
+LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT=http://localhost:9090
+LANGFUSE_S3_BATCH_EXPORT_ENDPOINT=http://minio:9000
+LANGFUSE_S3_BATCH_EXPORT_EXTERNAL_ENDPOINT=http://localhost:9090
+LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE=true
+LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE=true
+LANGFUSE_S3_BATCH_EXPORT_FORCE_PATH_STYLE=true
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Langfuse Launchpack
+
+This pack wraps Langfuse's official \`docker-compose.yml\` instead of copying
+the Compose stack into this generator. Langfuse's self-hosted surface includes
+web and worker containers plus Postgres, ClickHouse, Redis/Valkey, and
+S3-compatible object storage, so this launchpack keeps upstream deployment
+files intact and adds an operations manifest, install script, health check, and
+backup/restore surface around them.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+# Edit all secret placeholders before first start.
+./ops/install-official.sh
+cd self-hosted
+docker compose config >/dev/null
+docker compose up -d
+cd ..
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:3000 for local testing, or the URL configured in
+\`NEXTAUTH_URL\`.
+
+## Operations
+
+- This is an unofficial customer-owned deployment pack. It is not Langfuse Cloud and does not imply Langfuse support.
+- Langfuse core OSS features are MIT licensed; Enterprise features require a Langfuse Enterprise license key.
+- The official Docker Compose setup is for local, VM, and low-scale deployments. It lacks high availability, horizontal scaling, and built-in backup functionality.
+- Back up \`self-hosted/.env\`, Postgres, ClickHouse data/logs, MinIO object storage, and Redis queue/cache data before upgrades.
+- Keep \`SALT\`, \`ENCRYPTION_KEY\`, \`NEXTAUTH_SECRET\`, Postgres credentials, Redis auth, and object-storage credentials stable across restores.
+- Keep Postgres and ClickHouse on UTC.
+- Expose only Langfuse Web on port 3000 and MinIO on port 9090 when needed; keep databases and queues bound to private networks.
+- For high availability or higher throughput, follow upstream Kubernetes, Terraform, or managed-infrastructure guidance.
+`,
+    },
+    {
+      path: 'ops/install-official.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+LANGFUSE_SOURCE_REF="\${LANGFUSE_SOURCE_REF:-latest}"
+LANGFUSE_PROJECT_DIR="\${LANGFUSE_PROJECT_DIR:-self-hosted}"
+LANGFUSE_UPSTREAM_DIR="\${LANGFUSE_UPSTREAM_DIR:-.upstream/langfuse}"
+ROOT_DIR="$(pwd)"
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "git is required to install the official Langfuse Docker Compose setup." >&2
+  exit 1
+fi
+
+if [ "$LANGFUSE_SOURCE_REF" = "latest" ] && ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required to resolve the latest Langfuse release. Set LANGFUSE_SOURCE_REF to a release tag to avoid this." >&2
+  exit 1
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "Docker Compose is required before installing Langfuse self-hosted." >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$LANGFUSE_UPSTREAM_DIR")"
+
+if [ ! -d "$LANGFUSE_UPSTREAM_DIR/.git" ]; then
+  git clone --filter=blob:none --no-checkout https://github.com/langfuse/langfuse.git "$LANGFUSE_UPSTREAM_DIR"
+fi
+
+if [ "$LANGFUSE_SOURCE_REF" = "latest" ]; then
+  VERSION_URL="$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/langfuse/langfuse/releases/latest)"
+  LANGFUSE_SOURCE_REF="\${VERSION_URL##*/}"
+fi
+
+cd "$LANGFUSE_UPSTREAM_DIR"
+git sparse-checkout init --no-cone >/dev/null 2>&1 || true
+git sparse-checkout set docker-compose.yml
+git fetch --depth 1 origin "$LANGFUSE_SOURCE_REF"
+git checkout --detach FETCH_HEAD
+cd "$ROOT_DIR"
+
+mkdir -p "$LANGFUSE_PROJECT_DIR"
+cp "$LANGFUSE_UPSTREAM_DIR/docker-compose.yml" "$LANGFUSE_PROJECT_DIR/docker-compose.yml"
+printf '%s\\n' "$LANGFUSE_SOURCE_REF" > "$LANGFUSE_PROJECT_DIR/.langfuse-source-ref"
+
+if [ ! -f "$LANGFUSE_PROJECT_DIR/.env" ]; then
+  cp .env.example "$LANGFUSE_PROJECT_DIR/.env"
+fi
+
+echo "Official Langfuse Docker Compose setup $LANGFUSE_SOURCE_REF installed in $LANGFUSE_PROJECT_DIR"
+echo "Next: cd $LANGFUSE_PROJECT_DIR && edit .env && docker compose up -d"
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+LANGFUSE_PROJECT_DIR="\${LANGFUSE_PROJECT_DIR:-self-hosted}"
+APP_URL="\${APP_URL:-\${LANGFUSE_HEALTH_URL:-http://localhost:3000/api/public/health}}"
+
+if [ ! -d "$LANGFUSE_PROJECT_DIR" ]; then
+  echo "Run ./ops/install-official.sh before checking Langfuse." >&2
+  exit 1
+fi
+
+status="$(curl -sS -o /dev/null -w '%{http_code}' "$APP_URL" || true)"
+
+case "$status" in
+  2*)
+    echo "Langfuse health endpoint is reachable at $APP_URL with HTTP $status"
+    ;;
+  *)
+    echo "Langfuse health check failed at $APP_URL with HTTP $status" >&2
+    (cd "$LANGFUSE_PROJECT_DIR" && docker compose ps)
+    exit 1
+    ;;
+esac
+
+(cd "$LANGFUSE_PROJECT_DIR" && docker compose ps)
+`,
+    },
+  ],
+}
+
 const homepage: Launchpack = {
   id: 'homepage',
   name: 'Homepage',
@@ -2660,6 +2956,7 @@ export const launchpacks = [
   outline,
   supabase,
   dify,
+  langfuse,
   homepage,
 ] as const satisfies readonly Launchpack[]
 

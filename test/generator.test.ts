@@ -27,6 +27,7 @@ test('catalog exposes the operations-ready wedges', () => {
     'outline',
     'supabase',
     'dify',
+    'langfuse',
     'homepage',
   ])
   assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
@@ -677,6 +678,51 @@ test('generates a Dify wrapper around the official Docker setup', async () => {
   const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
   assert.match(manifest, /"pack": "dify"/)
   assert.match(manifest, /"supportModel": "upstream-agreement-required"/)
+})
+
+test('generates a Langfuse wrapper around the official Docker Compose setup', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('langfuse', dir)
+
+  assert.equal(result.files.some((file) => file.endsWith('compose.yaml')), false)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /LANGFUSE_SOURCE_REF=latest/)
+  assert.match(env, /ENCRYPTION_KEY=/)
+  assert.match(env, /DATABASE_URL=postgresql:\/\/postgres:/)
+  assert.match(env, /LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY=/)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /wraps Langfuse's official `docker-compose\.yml`/)
+  assert.match(readme, /Postgres, ClickHouse, Redis\/Valkey/)
+  assert.match(readme, /not Langfuse Cloud/)
+
+  const install = await readFile(path.join(dir, 'ops/install-official.sh'), 'utf8')
+  assert.match(
+    install,
+    /git clone --filter=blob:none --no-checkout https:\/\/github\.com\/langfuse\/langfuse\.git/,
+  )
+  assert.match(install, /git sparse-checkout set docker-compose\.yml/)
+  assert.match(install, /docker-compose\.yml/)
+  assert.match(install, /LANGFUSE_SOURCE_REF/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /langfuse-postgres\.sql/)
+  assert.match(backup, /langfuse-clickhouse-data\.tar\.gz/)
+  assert.match(backup, /langfuse-minio-data\.tar\.gz/)
+  assert.match(backup, /langfuse-redis-data\.tar\.gz/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /docker compose stop langfuse-web langfuse-worker clickhouse redis minio/)
+  assert.match(restore, /DROP SCHEMA IF EXISTS public CASCADE/)
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /\/api\/public\/health/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "langfuse"/)
+  assert.match(manifest, /"supportModel": "customer-owned-only"/)
+  assert.match(manifest, /"id": "langfuse-official-state"/)
 })
 
 test('generated operation scripts are valid shell syntax', async () => {

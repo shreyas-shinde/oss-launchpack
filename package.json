@@ -41,6 +41,8 @@
     "search",
     "ai-agents",
     "dify",
+    "langfuse",
+    "llm-observability",
     "llmops",
     "oss"
   ],

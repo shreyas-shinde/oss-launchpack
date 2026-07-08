@@ -55,6 +55,7 @@ multi-customer use.
 | `outline` | Team knowledge | `single-node` | `customer-owned-only` | <https://github.com/outline/outline> | Customer-owned team wiki, SSO/OIDC setup, backups |
 | `supabase` | Backend platform | `official-stack-heavy` | `permissive-hosting-fit` | <https://github.com/supabase/supabase/tree/master/docker> | Official Docker stack wrapper, public schema, Storage metadata/files, functions backup boundaries |
 | `dify` | AI application platform | `official-stack-heavy` | `upstream-agreement-required` | <https://github.com/langgenius/dify/tree/main/docker> | Official Docker stack wrapper, Postgres/storage/plugin/vector backup boundaries |
+| `langfuse` | LLM observability | `official-stack-heavy` | `customer-owned-only` | <https://github.com/langfuse/langfuse> | Official Docker Compose wrapper, Postgres, ClickHouse, Redis/Valkey, object storage backup boundaries |
 | `homepage` | Dashboard | `tiny-vps` | `review-required` | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
 
 Support model meanings:
