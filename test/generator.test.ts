@@ -10,6 +10,11 @@ test('catalog exposes the initial managed-deployment wedges', () => {
   const ids = listLaunchpacks().map((pack) => pack.id)
   assert.deepEqual(ids, ['open-webui', 'n8n', 'memos', 'uptime-kuma', 'homepage'])
   assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
+  assert.equal(listLaunchpacks().every((pack) => pack.supportModel.length > 0), true)
+  assert.notEqual(
+    listLaunchpacks().find((pack) => pack.id === 'n8n')?.supportModel,
+    'permissive-hosting-fit',
+  )
 })
 
 test('generates a launchpack without overwriting by default', async () => {
@@ -51,6 +56,7 @@ test('force mode regenerates an existing launchpack', async () => {
 
   const manifest = await readFile(path.join(dir, '.launchpack.json'), 'utf8')
   assert.match(manifest, /"pack": "memos"/)
+  assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
   assert.match(manifest, /"licenseNote": "Memos is MIT-licensed upstream/)
 
   const upstream = await readFile(path.join(dir, 'UPSTREAM.md'), 'utf8')

@@ -4,12 +4,19 @@ export type LaunchpackFile = {
   executable?: boolean
 }
 
+export type SupportModel =
+  | 'permissive-hosting-fit'
+  | 'customer-owned-only'
+  | 'upstream-agreement-required'
+  | 'review-required'
+
 export type Launchpack = {
   id: string
   name: string
   category: string
   upstream: string
   defaultPort: number
+  supportModel: SupportModel
   whyNow: string
   managedOpportunity: string
   licenseNote: string
@@ -22,6 +29,7 @@ const openWebUi: Launchpack = {
   category: 'AI interface',
   upstream: 'https://github.com/open-webui/open-webui',
   defaultPort: 3000,
+  supportModel: 'review-required',
   whyNow:
     'Private AI chat is one of the clearest self-hosting pulls, but non-experts still need a sane compose file, health check, and upgrade path.',
   managedOpportunity:
@@ -107,6 +115,7 @@ const n8n: Launchpack = {
   category: 'Automation',
   upstream: 'https://github.com/n8n-io/n8n',
   defaultPort: 5678,
+  supportModel: 'customer-owned-only',
   whyNow:
     'Agentic workflow automation has mainstream pull, but production n8n needs durable Postgres storage and secure encryption defaults.',
   managedOpportunity:
@@ -213,6 +222,7 @@ const memos: Launchpack = {
   category: 'Personal knowledge',
   upstream: 'https://github.com/usememos/memos',
   defaultPort: 5230,
+  supportModel: 'permissive-hosting-fit',
   whyNow:
     'Personal knowledge tools are growing with the broader self-hosted movement, and Memos has a simple operational shape for new self-hosters.',
   managedOpportunity:
@@ -281,6 +291,7 @@ const uptimeKuma: Launchpack = {
   category: 'Monitoring',
   upstream: 'https://github.com/louislam/uptime-kuma',
   defaultPort: 3001,
+  supportModel: 'permissive-hosting-fit',
   whyNow:
     'Every self-hosted stack needs uptime checks before it becomes trusted infrastructure.',
   managedOpportunity:
@@ -351,6 +362,7 @@ const homepage: Launchpack = {
   category: 'Dashboard',
   upstream: 'https://github.com/gethomepage/homepage',
   defaultPort: 3000,
+  supportModel: 'review-required',
   whyNow:
     'Self-hosters quickly accumulate services; a dashboard becomes the front door and status surface for the stack.',
   managedOpportunity:

@@ -50,13 +50,20 @@ multi-customer use.
 
 ## Initial Catalog
 
-| Pack | Category | Upstream | Operational wedge |
-| --- | --- | --- | --- |
-| `open-webui` | AI interface | <https://github.com/open-webui/open-webui> | Private AI chat hosting, model routing, upgrades |
-| `n8n` | Automation | <https://github.com/n8n-io/n8n> | Customer-owned/internal deployments, backups, upgrade support |
-| `memos` | Personal knowledge | <https://github.com/usememos/memos> | Private notes hosting, backups, custom domains |
-| `uptime-kuma` | Monitoring | <https://github.com/louislam/uptime-kuma> | Monitor setup, notification channels, incident routing |
-| `homepage` | Dashboard | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
+| Pack | Category | Support model | Upstream | Operational wedge |
+| --- | --- | --- | --- | --- |
+| `open-webui` | AI interface | `review-required` | <https://github.com/open-webui/open-webui> | Private AI chat hosting, model routing, upgrades |
+| `n8n` | Automation | `customer-owned-only` | <https://github.com/n8n-io/n8n> | Customer-owned/internal deployments, backups, upgrade support |
+| `memos` | Personal knowledge | `permissive-hosting-fit` | <https://github.com/usememos/memos> | Private notes hosting, backups, custom domains |
+| `uptime-kuma` | Monitoring | `permissive-hosting-fit` | <https://github.com/louislam/uptime-kuma> | Monitor setup, notification channels, incident routing |
+| `homepage` | Dashboard | `review-required` | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
+
+Support model meanings:
+
+- `permissive-hosting-fit`: upstream license appears compatible with hosted support, subject to trademark and notice requirements.
+- `customer-owned-only`: use for setup/support in the customer's own environment; hosted resale may require upstream approval.
+- `upstream-agreement-required`: do not offer hosted/embedded access without a separate upstream agreement.
+- `review-required`: license, trademark, or business-model constraints need case-by-case review.
 
 ## Install From Source
 

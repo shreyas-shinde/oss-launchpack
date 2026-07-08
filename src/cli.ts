@@ -46,7 +46,9 @@ Examples:
 
 function printList(): void {
   for (const pack of listLaunchpacks()) {
-    console.log(`${pack.id.padEnd(12)} ${pack.name.padEnd(14)} ${pack.category}`)
+    console.log(
+      `${pack.id.padEnd(12)} ${pack.name.padEnd(14)} ${pack.category.padEnd(20)} ${pack.supportModel}`,
+    )
   }
 }
 
@@ -66,6 +68,7 @@ ID: ${pack.id}
 Category: ${pack.category}
 Upstream: ${pack.upstream}
 Default port: ${pack.defaultPort}
+Support model: ${pack.supportModel}
 
 License/commercial-use note:
 ${pack.licenseNote}

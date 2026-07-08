@@ -35,6 +35,7 @@ This launchpack is maintained by OSS Launchpack and is not an official upstream 
 
 - App: ${pack.name}
 - Upstream: ${pack.upstream}
+- Support model: ${pack.supportModel}
 - License/commercial-use note: ${pack.licenseNote}
 
 Review the upstream project's current license, trademark policy, and commercial terms before offering this app as a hosted service or embedding it in another product.
@@ -48,6 +49,7 @@ Review the upstream project's current license, trademark policy, and commercial 
           pack: pack.id,
           name: pack.name,
           upstream: pack.upstream,
+          supportModel: pack.supportModel,
           licenseNote: pack.licenseNote,
           generatedBy: 'oss-launchpack',
         },
