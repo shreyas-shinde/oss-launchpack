@@ -1135,25 +1135,6 @@ const supabase: Launchpack = {
     backupTargets: [
       {
         type: 'command',
-        id: 'supabase-postgres-logical',
-        description:
-          'Logical pg_dumpall export of the official Supabase Postgres service, including roles and databases.',
-        backupCommands: [
-          'SUPABASE_PROJECT_DIR="${SUPABASE_PROJECT_DIR:-self-hosted}"',
-          'if [ ! -d "$SUPABASE_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before backing up Supabase." >&2; exit 1; fi',
-          'if [ -f "$SUPABASE_PROJECT_DIR/.env" ]; then set -a; . "$SUPABASE_PROJECT_DIR/.env"; set +a; fi',
-          '(cd "$SUPABASE_PROJECT_DIR" && docker compose exec -T db sh -c "PGPASSWORD=\\"$POSTGRES_PASSWORD\\" pg_dumpall -U postgres") > "$BACKUP_DIR_ABS/supabase-pg_dumpall.sql"',
-        ],
-        restoreCommands: [
-          'SUPABASE_PROJECT_DIR="${SUPABASE_PROJECT_DIR:-self-hosted}"',
-          'if [ ! -d "$SUPABASE_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before restoring Supabase." >&2; exit 1; fi',
-          'if [ ! -f "$BACKUP_DIR_ABS/supabase-pg_dumpall.sql" ]; then echo "Missing dump: $BACKUP_DIR_ABS/supabase-pg_dumpall.sql" >&2; exit 1; fi',
-          'if [ -f "$SUPABASE_PROJECT_DIR/.env" ]; then set -a; . "$SUPABASE_PROJECT_DIR/.env"; set +a; fi',
-          '(cd "$SUPABASE_PROJECT_DIR" && docker compose exec -T db sh -c "PGPASSWORD=\\"$POSTGRES_PASSWORD\\" psql -U postgres -v ON_ERROR_STOP=1") < "$BACKUP_DIR_ABS/supabase-pg_dumpall.sql"',
-        ],
-      },
-      {
-        type: 'command',
         id: 'supabase-secrets-config',
         description:
           'Official Docker .env and db-config pgsodium root key. Losing the key can make vault secrets unrecoverable.',
@@ -1186,12 +1167,37 @@ const supabase: Launchpack = {
           'for dir in storage functions snippets; do if [ -f "$BACKUP_DIR_ABS/supabase-$dir.tar.gz" ]; then rm -rf "$SUPABASE_PROJECT_DIR/volumes/$dir"; tar -C "$SUPABASE_PROJECT_DIR/volumes" -xzf "$BACKUP_DIR_ABS/supabase-$dir.tar.gz"; fi; done',
         ],
       },
+      {
+        type: 'command',
+        id: 'supabase-public-schema',
+        description:
+          'Logical pg_dump export of the project-owned public schema from the official Supabase Postgres service.',
+        backupCommands: [
+          'SUPABASE_PROJECT_DIR="${SUPABASE_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$SUPABASE_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before backing up Supabase." >&2; exit 1; fi',
+          'SUPABASE_ENV_FILE="$SUPABASE_PROJECT_DIR/.env"',
+          'SUPABASE_POSTGRES_PASSWORD="$(read_env_file_value "$SUPABASE_ENV_FILE" POSTGRES_PASSWORD || true)"',
+          'if [ -z "$SUPABASE_POSTGRES_PASSWORD" ]; then echo "Missing POSTGRES_PASSWORD in $SUPABASE_ENV_FILE." >&2; exit 1; fi',
+          '(cd "$SUPABASE_PROJECT_DIR" && docker compose exec -T db env PGPASSWORD="$SUPABASE_POSTGRES_PASSWORD" pg_dump --clean --if-exists --schema=public -U supabase_admin -d postgres) > "$BACKUP_DIR_ABS/supabase-public-schema.sql"',
+        ],
+        restoreCommands: [
+          'SUPABASE_PROJECT_DIR="${SUPABASE_PROJECT_DIR:-self-hosted}"',
+          'if [ ! -d "$SUPABASE_PROJECT_DIR" ]; then echo "Run ./ops/install-official.sh before restoring Supabase." >&2; exit 1; fi',
+          'if [ ! -f "$BACKUP_DIR_ABS/supabase-public-schema.sql" ]; then echo "Missing dump: $BACKUP_DIR_ABS/supabase-public-schema.sql" >&2; exit 1; fi',
+          'SUPABASE_ENV_FILE="$SUPABASE_PROJECT_DIR/.env"',
+          'SUPABASE_POSTGRES_PASSWORD="$(read_env_file_value "$SUPABASE_ENV_FILE" POSTGRES_PASSWORD || true)"',
+          'if [ -z "$SUPABASE_POSTGRES_PASSWORD" ]; then echo "Missing POSTGRES_PASSWORD in $SUPABASE_ENV_FILE." >&2; exit 1; fi',
+          'for service in $(cd "$SUPABASE_PROJECT_DIR" && docker compose ps --services --filter status=running); do if [ "$service" != "db" ]; then (cd "$SUPABASE_PROJECT_DIR" && docker compose stop "$service" >/dev/null); fi; done',
+          '(cd "$SUPABASE_PROJECT_DIR" && docker compose exec -T db env PGPASSWORD="$SUPABASE_POSTGRES_PASSWORD" psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1) < "$BACKUP_DIR_ABS/supabase-public-schema.sql"',
+          '(cd "$SUPABASE_PROJECT_DIR" && docker compose up -d --wait)',
+        ],
+      },
     ],
     upgrade: {
       command: './ops/install-official.sh && (cd self-hosted && docker compose pull && docker compose down && docker compose up -d)',
       notes: [
         'Review the official docker/CHANGELOG.md and docker/versions.md before updating.',
-        'Back up Postgres, .env, db-config/pgsodium key, Storage files, and functions before every upgrade.',
+        'Back up the public schema, .env, db-config/pgsodium key, Storage files, and functions before every upgrade.',
         'Pin SUPABASE_SOURCE_REF to a tested commit or tag for production-like installs.',
         'Follow Supabase Postgres upgrade guides for major Postgres changes instead of swapping the database image casually.',
         'Keep COMPOSE_FILE overrides such as logs, S3, HTTPS proxy, and Postgres 17 consistent across start, backup, restore, and upgrade commands.',
@@ -1240,7 +1246,7 @@ official \`self-hosted/.env\`.
 - The official Docker setup is community-supported and not the managed Supabase platform.
 - Self-hosted Supabase is a single-project stack; platform features such as managed backups, PITR, branching, and some analytics/vector features are not included.
 - Change all default secrets before first start. The official \`.env.example\` is intentionally not production-secure.
-- Back up Postgres, \`self-hosted/.env\`, the \`supabase_db-config\` pgsodium key, local Storage files, functions, and snippets before upgrades.
+- Back up the public schema, \`self-hosted/.env\`, the \`supabase_db-config\` pgsodium key, local Storage files, functions, and snippets before upgrades.
 - Use HTTPS through a reverse proxy before exposing auth, dashboard, or API traffic to real users.
 - Prefer S3-compatible Storage for production-like file durability; the default file backend stores files on the host filesystem.
 - Pin \`SUPABASE_SOURCE_REF\` to a tested upstream ref for repeatable installs.

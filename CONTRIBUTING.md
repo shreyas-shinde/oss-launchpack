@@ -142,3 +142,16 @@ scripts/validate-n8n-backup-restore.sh
 Set `KEEP_N8N_VALIDATION=1` to leave the generated stack in place for manual
 inspection. Otherwise the script removes its containers and volumes before it
 exits.
+
+The Supabase smoke test generates `tmp/supabase`, installs the official Docker
+stack, generates upstream secrets, starts the stack on test-only ports, writes a
+known `public` schema row and local Storage marker, backs them up, deletes both
+markers, restores them, and verifies the gateway is reachable:
+
+```bash
+scripts/validate-supabase-backup-restore.sh
+```
+
+Set `KEEP_SUPABASE_VALIDATION=1` to leave the generated stack in place for
+manual inspection. Otherwise the script removes its containers and volumes
+before it exits.

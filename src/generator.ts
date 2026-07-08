@@ -232,6 +232,28 @@ absolute_path() {
   esac
 }
 
+read_env_file_value() {
+  env_file="$1"
+  key="$2"
+
+  if [ ! -f "$env_file" ]; then
+    return 1
+  fi
+
+  awk -v key="$key" '
+    /^[[:space:]]*#/ || !/=/{ next }
+    {
+      line = $0
+      split(line, pair, "=")
+      if (pair[1] == key) {
+        sub(/^[^=]*=/, "", line)
+        print line
+        exit
+      }
+    }
+  ' "$env_file"
+}
+
 if [ -f .env ]; then
   set -a
   . ./.env
@@ -321,6 +343,28 @@ absolute_path() {
     /*) printf '%s\\n' "$1" ;;
     *) printf '%s\\n' "$(pwd)/$1" ;;
   esac
+}
+
+read_env_file_value() {
+  env_file="$1"
+  key="$2"
+
+  if [ ! -f "$env_file" ]; then
+    return 1
+  fi
+
+  awk -v key="$key" '
+    /^[[:space:]]*#/ || !/=/{ next }
+    {
+      line = $0
+      split(line, pair, "=")
+      if (pair[1] == key) {
+        sub(/^[^=]*=/, "", line)
+        print line
+        exit
+      }
+    }
+  ' "$env_file"
 }
 
 if [ -f .env ]; then

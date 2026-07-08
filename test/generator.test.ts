@@ -62,6 +62,8 @@ test('contribution guide documents launchpack requirements', async () => {
   assert.match(guide, /Keep private business strategy out of public issues/)
   assert.match(guide, /scripts\/validate-n8n-backup-restore\.sh/)
   assert.match(guide, /stops n8n while Postgres is restored/)
+  assert.match(guide, /scripts\/validate-supabase-backup-restore\.sh/)
+  assert.match(guide, /known `public` schema row/)
 })
 
 test('generates a launchpack without overwriting by default', async () => {
@@ -126,6 +128,21 @@ test('n8n backup restore validator is repeatable shell', async () => {
 
   const content = await readFile(script, 'utf8')
   assert.match(content, /docker compose stop n8n/)
+
+  const scriptStat = await stat(script)
+  assert.equal((scriptStat.mode & 0o111) > 0, true)
+})
+
+test('Supabase backup restore validator is repeatable shell', async () => {
+  const script = 'scripts/validate-supabase-backup-restore.sh'
+  await execFileAsync('sh', ['-n', script])
+
+  const content = await readFile(script, 'utf8')
+  assert.match(content, /SUPABASE_SOURCE_REF/)
+  assert.match(content, /docker compose up -d --wait/)
+  assert.match(content, /supabase-public-schema\.sql/)
+  assert.match(content, /oss_launchpack_validation/)
+  assert.match(content, /KEEP_SUPABASE_VALIDATION/)
 
   const scriptStat = await stat(script)
   assert.equal((scriptStat.mode & 0o111) > 0, true)
@@ -245,13 +262,22 @@ test('generates a Supabase wrapper around the official Docker setup', async () =
   assert.match(healthcheck, /docker compose ps/)
 
   const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
-  assert.match(backup, /supabase-pg_dumpall\.sql/)
+  assert.match(backup, /supabase-public-schema\.sql/)
+  assert.match(backup, /pg_dump --clean --if-exists --schema=public -U supabase_admin/)
   assert.match(backup, /supabase-\$dir\.tar\.gz/)
   assert.match(backup, /pgsodium_root\.key/)
+  assert.match(backup, /read_env_file_value/)
+  assert.match(backup, /SUPABASE_POSTGRES_PASSWORD/)
+  assert.doesNotMatch(backup, /\. "\$SUPABASE_PROJECT_DIR\/\.env"/)
 
   const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
-  assert.match(restore, /supabase-pg_dumpall\.sql/)
+  assert.match(restore, /supabase-public-schema\.sql/)
   assert.match(restore, /supabase_db-config/)
+  assert.match(restore, /psql -U supabase_admin -d postgres/)
+  assert.match(restore, /docker compose ps --services --filter status=running/)
+  assert.match(restore, /read_env_file_value/)
+  assert.match(restore, /SUPABASE_POSTGRES_PASSWORD/)
+  assert.doesNotMatch(restore, /\. "\$SUPABASE_PROJECT_DIR\/\.env"/)
 
   const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
   assert.match(manifest, /"pack": "supabase"/)
