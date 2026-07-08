@@ -37,6 +37,7 @@
     "vector-database",
     "rag",
     "meilisearch",
+    "typesense",
     "search",
     "ai-agents",
     "dify",

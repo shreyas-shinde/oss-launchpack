@@ -23,6 +23,7 @@ test('catalog exposes the operations-ready wedges', () => {
     'clickhouse',
     'qdrant',
     'meilisearch',
+    'typesense',
     'outline',
     'supabase',
     'dify',
@@ -84,6 +85,9 @@ test('contribution guide documents launchpack requirements', async () => {
   assert.match(guide, /scripts\/validate-meilisearch-backup-restore\.sh/)
   assert.match(guide, /known document\s+marker/)
   assert.match(guide, /KEEP_MEILISEARCH_VALIDATION/)
+  assert.match(guide, /scripts\/validate-typesense-backup-restore\.sh/)
+  assert.match(guide, /official\s+snapshot\s+endpoint/)
+  assert.match(guide, /KEEP_TYPESENSE_VALIDATION/)
 
   assert.match(issueTemplate, /Official deployment docs/)
   assert.match(issueTemplate, /Durable state and restore boundary/)
@@ -246,6 +250,40 @@ test('Meilisearch backup restore validator is repeatable shell', async () => {
 
   const scriptStat = await stat(script)
   assert.equal((scriptStat.mode & 0o111) > 0, true)
+})
+
+test('Typesense backup restore validator is repeatable shell', async () => {
+  const script = 'scripts/validate-typesense-backup-restore.sh'
+  await execFileAsync('sh', ['-n', script])
+
+  const content = await readFile(script, 'utf8')
+  assert.match(content, /TYPESENSE_VALIDATION_PORT/)
+  assert.match(content, /oss_launchpack_validation/)
+  assert.match(content, /typesense-snapshot\.tar\.gz/)
+  assert.match(content, /CONFIRM_RESTORE=yes/)
+  assert.match(content, /KEEP_TYPESENSE_VALIDATION/)
+
+  const scriptStat = await stat(script)
+  assert.equal((scriptStat.mode & 0o111) > 0, true)
+})
+
+test('generates a Typesense pack with official snapshot backup commands', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  await generateLaunchpack('typesense', dir)
+
+  const compose = await readFile(path.join(dir, 'compose.yaml'), 'utf8')
+  assert.match(compose, /typesense\/typesense:\$\{TYPESENSE_VERSION:-30\.2\}/)
+  assert.match(compose, /--data-dir/)
+  assert.match(compose, /--api-key=\$\{TYPESENSE_API_KEY:\?Set TYPESENSE_API_KEY in \.env\}/)
+  assert.match(compose, /typesense-data:\/data/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /\/operations\/snapshot\?snapshot_path=\$snapshot_path/)
+  assert.match(backup, /typesense-snapshot\.tar\.gz/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /compose stop typesense/)
+  assert.match(restore, /typesense-snapshot\.tar\.gz/)
 })
 
 test('generates a Sentry wrapper around the official self-hosted repository', async () => {

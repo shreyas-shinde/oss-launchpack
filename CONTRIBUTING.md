@@ -219,3 +219,18 @@ Set `MEILISEARCH_VALIDATION_PORT` or `MEILISEARCH_VALIDATION_MASTER_KEY` to
 override the defaults. Set `KEEP_MEILISEARCH_VALIDATION=1` to leave the
 generated stack in place for manual inspection. Otherwise the script removes
 its containers and volumes before it exits.
+
+The Typesense smoke test generates `tmp/typesense`, starts the generated
+Compose pack on a test-only port with a test API key, writes a known document
+marker into a collection, creates a backup through the official snapshot
+endpoint, deletes the collection, restores the snapshot archive while Typesense
+is stopped, restarts Typesense, and verifies the document marker returns:
+
+```bash
+scripts/validate-typesense-backup-restore.sh
+```
+
+Set `TYPESENSE_VALIDATION_PORT` or `TYPESENSE_VALIDATION_API_KEY` to override
+the defaults. Set `KEEP_TYPESENSE_VALIDATION=1` to leave the generated stack in
+place for manual inspection. Otherwise the script removes its containers and
+volumes before it exits.

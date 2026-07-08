@@ -1621,6 +1621,159 @@ echo "Meilisearch is reachable at $APP_URL"
   ],
 }
 
+const typesense: Launchpack = {
+  id: 'typesense',
+  name: 'Typesense',
+  category: 'Search',
+  upstream: 'https://github.com/typesense/typesense',
+  defaultPort: 8108,
+  supportModel: 'review-required',
+  whyNow:
+    'Fast typo-tolerant search is a common missing piece in self-hosted apps, and Typesense has an official Docker image plus a simple single-node shape that still needs careful API-key, snapshot, and restore handling.',
+  operationsFit:
+    'Typesense operations need a bootstrap API key, durable /data storage, health checks, official snapshot-based backups, stopped-service restores, and upgrade notes for search-heavy apps.',
+  licenseNote:
+    'Typesense is GPL-3.0 licensed upstream. Preserve upstream notices and trademarks, review commercial and hosted-service constraints for your use case, and do not present this launchpack as Typesense Cloud or official Typesense support.',
+  sizing: {
+    tier: 'single-node',
+    minimumCpuCores: 2,
+    minimumMemoryGb: 2,
+    storage:
+      '10 GB+ for small search workloads; plan extra space for snapshots, imports, compaction, and rebuilds after restore.',
+    scaling:
+      'Start as a single-node search service. For high availability, clustering, or managed operations, follow upstream guidance before extending this starter pack.',
+    notes: [
+      'Every endpoint except /health requires the bootstrap API key.',
+      'The generated backup uses the official snapshot endpoint instead of archiving a live data directory directly.',
+      'Restore stops Typesense, replaces /data with the snapshot contents, and restarts the service so in-memory indexes rebuild from disk.',
+    ],
+  },
+  operations: {
+    healthcheckUrl: 'http://localhost:8108/health',
+    backupTargets: [
+      {
+        type: 'command',
+        id: 'typesense-snapshot',
+        description:
+          'Official Typesense server-side snapshot archived from /data/snapshots for same-version backup and restore.',
+        backupCommands: [
+          'TYPESENSE_URL="${TYPESENSE_URL:-http://localhost:${TYPESENSE_PORT:-8108}}"',
+          'TYPESENSE_API_KEY="${TYPESENSE_API_KEY:-$(read_env_file_value .env TYPESENSE_API_KEY || true)}"',
+          'if [ -z "$TYPESENSE_API_KEY" ]; then echo "Set TYPESENSE_API_KEY in .env before backing up Typesense." >&2; exit 1; fi',
+          'snapshot_name="launchpack-$STAMP"',
+          'snapshot_path="/data/snapshots/$snapshot_name"',
+          'curl -fsS -X POST "$TYPESENSE_URL/operations/snapshot?snapshot_path=$snapshot_path" -H "X-TYPESENSE-API-KEY: $TYPESENSE_API_KEY" >/dev/null',
+          'container_id="$(compose ps -q typesense)"',
+          'if [ -z "$container_id" ]; then echo "Service typesense is not running. Start the stack before backing up Typesense." >&2; exit 1; fi',
+          'source_path="$(docker inspect "$container_id" --format "{{range .Mounts}}{{if eq .Destination \\"/data\\"}}{{.Source}}{{end}}{{end}}")"',
+          'if [ -z "$source_path" ]; then echo "Could not find /data mount on service typesense." >&2; exit 1; fi',
+          'docker run --rm -v "$source_path:/data:ro" -v "$BACKUP_DIR_ABS:/backup" alpine:3.20 sh -c "test -d \\"/data/snapshots/$snapshot_name\\" && tar -C \\"/data/snapshots/$snapshot_name\\" -czf /backup/typesense-snapshot.tar.gz ."',
+        ],
+        restoreCommands: [
+          'if [ ! -f "$BACKUP_DIR_ABS/typesense-snapshot.tar.gz" ]; then echo "Missing archive: $BACKUP_DIR_ABS/typesense-snapshot.tar.gz" >&2; exit 1; fi',
+          'container_id="$(compose ps -a -q typesense | head -n 1)"',
+          'if [ -z "$container_id" ]; then echo "Service typesense does not have a container. Create the stack before restoring Typesense." >&2; exit 1; fi',
+          'source_path="$(docker inspect "$container_id" --format "{{range .Mounts}}{{if eq .Destination \\"/data\\"}}{{.Source}}{{end}}{{end}}")"',
+          'if [ -z "$source_path" ]; then echo "Could not find /data mount on service typesense." >&2; exit 1; fi',
+          'compose stop typesense >/dev/null',
+          'docker run --rm -i -v "$source_path:/data" alpine:3.20 sh -c "set -eu; find /data -mindepth 1 -maxdepth 1 -exec rm -rf {} +; tar -C /data -xzf -" < "$BACKUP_DIR_ABS/typesense-snapshot.tar.gz"',
+          'compose up -d typesense',
+        ],
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: [
+        'Pin TYPESENSE_VERSION in production so upgrades are intentional.',
+        'Create a snapshot backup before changing Typesense versions.',
+        'Review upstream release notes for index format, snapshot, clustering, and API changes before major upgrades.',
+        'Keep TYPESENSE_API_KEY stable and secret. Rotate API access deliberately through upstream key-management APIs.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: 'compose.yaml',
+      content: `services:
+  typesense:
+    image: typesense/typesense:\${TYPESENSE_VERSION:-30.2}
+    restart: unless-stopped
+    ports:
+      - "\${TYPESENSE_PORT:-8108}:8108"
+    command:
+      - --data-dir
+      - /data
+      - --api-key=\${TYPESENSE_API_KEY:?Set TYPESENSE_API_KEY in .env}
+      - --api-address
+      - 0.0.0.0
+      - --api-port
+      - "8108"
+    volumes:
+      - typesense-data:/data
+
+volumes:
+  typesense-data:
+`,
+    },
+    {
+      path: '.env.example',
+      content: `TYPESENSE_VERSION=30.2
+TYPESENSE_PORT=8108
+TYPESENSE_URL=http://localhost:8108
+TYPESENSE_API_KEY=replace-with-a-long-random-api-key
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Typesense Launchpack
+
+This pack runs the official Typesense Docker image with persistent \`/data\`
+storage, a required bootstrap API key, generated operations metadata, and
+snapshot-based backup/restore scripts for self-hosted search workloads.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+# Edit TYPESENSE_API_KEY before first start.
+docker compose up -d
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:8108/health to verify the service. Other API routes
+require \`X-TYPESENSE-API-KEY: <TYPESENSE_API_KEY>\`.
+
+## Operations
+
+- Typesense is GPL-3.0 licensed; review upstream terms before commercial use.
+- Typesense Cloud is the upstream managed path. Do not present this launchpack as Typesense Cloud or official Typesense support.
+- This pack defaults to \`TYPESENSE_VERSION=30.2\` because the upstream Docker repository does not publish a \`latest\` tag.
+- Persistent data is stored in \`typesense-data\` at \`/data\`.
+- Backups use the official \`/operations/snapshot\` endpoint, then archive the server-side snapshot directory.
+- Restore stops Typesense, replaces \`/data\` with the snapshot archive contents, and restarts the service so indexes rebuild from disk.
+- Keep \`TYPESENSE_API_KEY\` stable and secret. Rotate API keys deliberately through upstream key-management APIs.
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+APP_URL="\${APP_URL:-\${TYPESENSE_URL:-http://localhost:8108}}"
+curl -fsS "$APP_URL/health" >/dev/null
+echo "Typesense is reachable at $APP_URL"
+`,
+    },
+  ],
+}
+
 const outline: Launchpack = {
   id: 'outline',
   name: 'Outline',
@@ -2503,6 +2656,7 @@ export const launchpacks = [
   clickhouse,
   qdrant,
   meilisearch,
+  typesense,
   outline,
   supabase,
   dify,
