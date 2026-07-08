@@ -50,7 +50,7 @@ multi-customer use.
 | `grafana` | Observability | `single-node` | `customer-owned-only` | <https://github.com/grafana/grafana> | Postgres-backed dashboards, provisioning, plugin and upgrade support |
 | `clickhouse` | Analytics database | `single-node-heavy` | `permissive-hosting-fit` | <https://github.com/ClickHouse/ClickHouse> | Native database backups, config/users, storage-heavy upgrade support |
 | `outline` | Team knowledge | `single-node` | `customer-owned-only` | <https://github.com/outline/outline> | Customer-owned team wiki, SSO/OIDC setup, backups |
-| `supabase` | Backend platform | `official-stack-heavy` | `permissive-hosting-fit` | <https://github.com/supabase/supabase/tree/master/docker> | Official Docker stack wrapper, public schema/storage/functions backup boundaries |
+| `supabase` | Backend platform | `official-stack-heavy` | `permissive-hosting-fit` | <https://github.com/supabase/supabase/tree/master/docker> | Official Docker stack wrapper, public schema, Storage metadata/files, functions backup boundaries |
 | `dify` | AI application platform | `official-stack-heavy` | `upstream-agreement-required` | <https://github.com/langgenius/dify/tree/main/docker> | Official Docker stack wrapper, Postgres/storage/plugin/vector backup boundaries |
 | `homepage` | Dashboard | `tiny-vps` | `review-required` | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
 

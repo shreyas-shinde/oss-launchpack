@@ -6,6 +6,9 @@ TARGET_DIR="$ROOT_DIR/tmp/supabase"
 BACKUP_STAMP="validation-proof"
 EXPECTED_DB_MARKER="before-backup-supabase-validation"
 EXPECTED_FILE_MARKER="before-backup-supabase-storage-marker"
+EXPECTED_STORAGE_BUCKET="oss-launchpack-validation"
+EXPECTED_STORAGE_OBJECT="restored-object.txt"
+EXPECTED_STORAGE_METADATA_MARKER="before-backup-supabase-storage-metadata"
 
 need_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -130,8 +133,8 @@ docker compose config >/dev/null
 docker compose up -d --wait
 wait_for_supabase
 
-mkdir -p volumes/storage/oss-launchpack-validation
-printf '%s\n' "$EXPECTED_FILE_MARKER" > volumes/storage/oss-launchpack-validation/marker.txt
+mkdir -p "volumes/storage/$EXPECTED_STORAGE_BUCKET"
+printf '%s\n' "$EXPECTED_FILE_MARKER" > "volumes/storage/$EXPECTED_STORAGE_BUCKET/marker.txt"
 
 docker compose exec -T db sh -lc 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U postgres -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<SQL
 create table if not exists public.oss_launchpack_validation (
@@ -141,18 +144,36 @@ create table if not exists public.oss_launchpack_validation (
 insert into public.oss_launchpack_validation (id, marker)
 values (1, '$EXPECTED_DB_MARKER')
 on conflict (id) do update set marker = excluded.marker;
+
+insert into storage.buckets (id, name, public)
+values ('$EXPECTED_STORAGE_BUCKET', '$EXPECTED_STORAGE_BUCKET', false)
+on conflict (id) do update set name = excluded.name, public = excluded.public;
+
+insert into storage.objects (bucket_id, name, metadata)
+values ('$EXPECTED_STORAGE_BUCKET', '$EXPECTED_STORAGE_OBJECT', '{"marker":"$EXPECTED_STORAGE_METADATA_MARKER","mimetype":"text/plain"}'::jsonb)
+on conflict (bucket_id, name) do update set metadata = excluded.metadata;
 SQL
 
 cd "$TARGET_DIR"
 STAMP="$BACKUP_STAMP" ./ops/backup.sh
 
 rg "$EXPECTED_DB_MARKER" "backups/$BACKUP_STAMP/supabase-public-schema.sql" >/dev/null
-tar -tzf "backups/$BACKUP_STAMP/supabase-storage.tar.gz" | grep -q 'storage/oss-launchpack-validation/marker.txt'
+rg "$EXPECTED_STORAGE_METADATA_MARKER" "backups/$BACKUP_STAMP/supabase-storage-metadata.sql" >/dev/null
+rg "$EXPECTED_STORAGE_OBJECT" "backups/$BACKUP_STAMP/supabase-storage-metadata.sql" >/dev/null
+tar -tzf "backups/$BACKUP_STAMP/supabase-storage.tar.gz" | grep -q "storage/$EXPECTED_STORAGE_BUCKET/marker.txt"
 
-rm -rf self-hosted/volumes/storage/oss-launchpack-validation
-(cd self-hosted && docker compose exec -T db sh -lc 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U postgres -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -c "drop table if exists public.oss_launchpack_validation"')
+rm -rf "self-hosted/volumes/storage/$EXPECTED_STORAGE_BUCKET"
+(cd self-hosted && docker compose exec -T db sh -lc 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U postgres -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<SQL
+drop table if exists public.oss_launchpack_validation;
+begin;
+select set_config('storage.allow_delete_query', 'true', true);
+delete from storage.objects where bucket_id = '$EXPECTED_STORAGE_BUCKET';
+delete from storage.buckets where id = '$EXPECTED_STORAGE_BUCKET';
+commit;
+SQL
+)
 
-if [ -f self-hosted/volumes/storage/oss-launchpack-validation/marker.txt ]; then
+if [ -f "self-hosted/volumes/storage/$EXPECTED_STORAGE_BUCKET/marker.txt" ]; then
   echo "Expected storage marker to be absent before restore." >&2
   exit 1
 fi
@@ -163,10 +184,17 @@ if [ -n "$table_name" ]; then
   exit 1
 fi
 
+metadata_count="$(cd self-hosted && docker compose exec -T db sh -lc "PGPASSWORD=\"\$POSTGRES_PASSWORD\" psql -U postgres -d \"\$POSTGRES_DB\" -tAc \"select count(*) from storage.objects where bucket_id = '$EXPECTED_STORAGE_BUCKET';\"")"
+if [ "$metadata_count" != "0" ]; then
+  echo "Expected validation storage metadata to be absent before restore; got $metadata_count." >&2
+  exit 1
+fi
+
 CONFIRM_RESTORE=yes ./ops/restore.sh "backups/$BACKUP_STAMP"
 
 restored_db_marker="$(cd self-hosted && docker compose exec -T db sh -lc 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U postgres -d "$POSTGRES_DB" -tAc "select marker from public.oss_launchpack_validation where id = 1;"')"
-restored_file_marker="$(cat self-hosted/volumes/storage/oss-launchpack-validation/marker.txt)"
+restored_file_marker="$(cat "self-hosted/volumes/storage/$EXPECTED_STORAGE_BUCKET/marker.txt")"
+restored_storage_metadata_marker="$(cd self-hosted && docker compose exec -T db sh -lc "PGPASSWORD=\"\$POSTGRES_PASSWORD\" psql -U postgres -d \"\$POSTGRES_DB\" -tAc \"select metadata->>'marker' from storage.objects where bucket_id = '$EXPECTED_STORAGE_BUCKET' and name = '$EXPECTED_STORAGE_OBJECT';\"")"
 
 if [ "$restored_db_marker" != "$EXPECTED_DB_MARKER" ]; then
   echo "Database marker was not restored." >&2
@@ -175,6 +203,11 @@ fi
 
 if [ "$restored_file_marker" != "$EXPECTED_FILE_MARKER" ]; then
   echo "Storage marker was not restored." >&2
+  exit 1
+fi
+
+if [ "$restored_storage_metadata_marker" != "$EXPECTED_STORAGE_METADATA_MARKER" ]; then
+  echo "Storage metadata marker was not restored." >&2
   exit 1
 fi
 

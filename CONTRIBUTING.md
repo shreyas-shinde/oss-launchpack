@@ -145,8 +145,9 @@ exits.
 
 The Supabase smoke test generates `tmp/supabase`, installs the official Docker
 stack, generates upstream secrets, starts the stack on test-only ports, writes a
-known `public` schema row and local Storage marker, backs them up, deletes both
-markers, restores them, and verifies the gateway is reachable:
+known `public` schema row, Storage bucket/object metadata row, and local Storage
+marker, backs them up, deletes all markers, restores them, and verifies the
+gateway is reachable:
 
 ```bash
 scripts/validate-supabase-backup-restore.sh
