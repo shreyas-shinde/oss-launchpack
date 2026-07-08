@@ -1099,6 +1099,250 @@ echo "Grafana is reachable at $APP_URL"
   ],
 }
 
+const clickhouse: Launchpack = {
+  id: 'clickhouse',
+  name: 'ClickHouse',
+  category: 'Analytics database',
+  upstream: 'https://github.com/ClickHouse/ClickHouse',
+  defaultPort: 8123,
+  supportModel: 'permissive-hosting-fit',
+  whyNow:
+    'ClickHouse is a core data layer behind analytics, observability, events, and AI telemetry workloads, but operators need explicit storage, backup, restore, and upgrade boundaries before trusting it with production-like data.',
+  operationsFit:
+    'ClickHouse operations need native database backups, persistent data/log volumes, config and users files, high file-descriptor limits, and careful upgrade planning for storage-heavy analytical workloads.',
+  licenseNote:
+    'ClickHouse is Apache-2.0 licensed upstream. Preserve notices, use exact upstream binaries when referring to ClickHouse software, and follow the ClickHouse trademark policy for any product, service, or managed offering.',
+  sizing: {
+    tier: 'single-node-heavy',
+    minimumCpuCores: 4,
+    minimumMemoryGb: 8,
+    storage:
+      '100 GB+ SSD/NVMe for analytical data, native backups, merge overhead, and logs; event volume and retention dominate capacity.',
+    scaling:
+      'Start as a single-node analytical database. Move to a deliberate replicated or sharded design before multi-tenant, high-ingest, or high-retention workloads.',
+    notes: [
+      'ClickHouse is optimized for append-heavy analytical workloads, not OLTP-style row updates.',
+      'Native BACKUP/RESTORE should be practiced on a spare stack before relying on it for incident recovery.',
+    ],
+  },
+  operations: {
+    healthcheckUrl: 'clickhouse://localhost:9000',
+    backupTargets: [
+      {
+        type: 'mount',
+        id: 'clickhouse-config',
+        service: 'clickhouse',
+        path: '/etc/clickhouse-server/config.d',
+        description: 'ClickHouse server configuration overrides, including the launchpack backup disk.',
+      },
+      {
+        type: 'mount',
+        id: 'clickhouse-users',
+        service: 'clickhouse',
+        path: '/etc/clickhouse-server/users.d',
+        description: 'ClickHouse user and access-management configuration overrides.',
+      },
+      {
+        type: 'mount',
+        id: 'clickhouse-initdb',
+        service: 'clickhouse',
+        path: '/docker-entrypoint-initdb.d',
+        description: 'Optional database initialization scripts mounted into the official Docker image.',
+      },
+      {
+        type: 'command',
+        id: 'clickhouse-native-backup',
+        description: 'Native ClickHouse BACKUP archive for the database named by CLICKHOUSE_DB.',
+        backupCommands: [
+          'clickhouse_database="${CLICKHOUSE_DB:-analytics}"',
+          'case "$clickhouse_database" in *[!A-Za-z0-9_]*) echo "CLICKHOUSE_DB must contain only letters, numbers, and underscores." >&2; exit 1 ;; esac',
+          'if [ "$clickhouse_database" = "default" ]; then echo "Set CLICKHOUSE_DB to a non-default database before using native restore." >&2; exit 1; fi',
+          'clickhouse_user="${CLICKHOUSE_USER:-analytics}"',
+          'clickhouse_password="${CLICKHOUSE_PASSWORD:-replace-with-a-long-random-password}"',
+          'clickhouse_backup_file="clickhouse-$clickhouse_database.zip"',
+          'compose exec -T clickhouse sh -lc "rm -f /backups/$clickhouse_backup_file"',
+          'compose exec -T clickhouse clickhouse-client --user "$clickhouse_user" --password "$clickhouse_password" --query "BACKUP DATABASE $clickhouse_database TO Disk(\'launchpack_backups\', \'$clickhouse_backup_file\')"',
+          'clickhouse_container_id="$(compose ps -q clickhouse)"',
+          'if [ -z "$clickhouse_container_id" ]; then echo "ClickHouse service is not running." >&2; exit 1; fi',
+          'docker cp "$clickhouse_container_id:/backups/$clickhouse_backup_file" "$BACKUP_DIR_ABS/clickhouse-native-backup.zip"',
+        ],
+        restoreCommands: [
+          'if [ ! -f "$BACKUP_DIR_ABS/clickhouse-native-backup.zip" ]; then echo "Missing ClickHouse native backup: $BACKUP_DIR_ABS/clickhouse-native-backup.zip" >&2; exit 1; fi',
+          'clickhouse_database="${CLICKHOUSE_DB:-analytics}"',
+          'case "$clickhouse_database" in *[!A-Za-z0-9_]*) echo "CLICKHOUSE_DB must contain only letters, numbers, and underscores." >&2; exit 1 ;; esac',
+          'if [ "$clickhouse_database" = "default" ]; then echo "Set CLICKHOUSE_DB to a non-default database before using native restore." >&2; exit 1; fi',
+          'clickhouse_user="${CLICKHOUSE_USER:-analytics}"',
+          'clickhouse_password="${CLICKHOUSE_PASSWORD:-replace-with-a-long-random-password}"',
+          'clickhouse_backup_file="clickhouse-$clickhouse_database.zip"',
+          'clickhouse_container_id="$(compose ps -q clickhouse)"',
+          'if [ -z "$clickhouse_container_id" ]; then echo "ClickHouse service is not running. Start the stack before restoring." >&2; exit 1; fi',
+          'compose exec -T clickhouse sh -lc "rm -f /backups/$clickhouse_backup_file"',
+          'docker cp "$BACKUP_DIR_ABS/clickhouse-native-backup.zip" "$clickhouse_container_id:/backups/$clickhouse_backup_file"',
+          'compose exec -T clickhouse clickhouse-client --user "$clickhouse_user" --password "$clickhouse_password" --query "DROP DATABASE IF EXISTS $clickhouse_database"',
+          'compose exec -T clickhouse clickhouse-client --user "$clickhouse_user" --password "$clickhouse_password" --query "RESTORE DATABASE $clickhouse_database FROM Disk(\'launchpack_backups\', \'$clickhouse_backup_file\')"',
+        ],
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: [
+        'Take and restore-test a native backup before changing CLICKHOUSE_VERSION.',
+        'Review ClickHouse release notes for backward-incompatible changes and storage format changes.',
+        'Keep enough free disk for merges, mutations, and backup archives during upgrades.',
+        'Move backups to S3 or another remote target before relying on this for high-retention production datasets.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: 'compose.yaml',
+      content: `services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:\${CLICKHOUSE_VERSION:-latest}
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    ports:
+      - "\${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "\${CLICKHOUSE_NATIVE_PORT:-9000}:9000"
+    environment:
+      CLICKHOUSE_DB: "\${CLICKHOUSE_DB:-analytics}"
+      CLICKHOUSE_USER: "\${CLICKHOUSE_USER:-analytics}"
+      CLICKHOUSE_PASSWORD: "\${CLICKHOUSE_PASSWORD:-replace-with-a-long-random-password}"
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - clickhouse-logs:/var/log/clickhouse-server
+      - clickhouse-backups:/backups
+      - ./config.d:/etc/clickhouse-server/config.d:ro
+      - ./users.d:/etc/clickhouse-server/users.d
+      - ./initdb.d:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user \${CLICKHOUSE_USER:-analytics} --password \${CLICKHOUSE_PASSWORD:-replace-with-a-long-random-password} --query 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  clickhouse-data:
+  clickhouse-logs:
+  clickhouse-backups:
+`,
+    },
+    {
+      path: '.env.example',
+      content: `CLICKHOUSE_VERSION=latest
+CLICKHOUSE_HTTP_PORT=8123
+CLICKHOUSE_NATIVE_PORT=9000
+CLICKHOUSE_DB=analytics
+CLICKHOUSE_USER=analytics
+CLICKHOUSE_PASSWORD=replace-with-a-long-random-password
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# ClickHouse Launchpack
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+# Edit CLICKHOUSE_PASSWORD before first production use.
+docker compose up -d
+./ops/healthcheck.sh
+\`\`\`
+
+ClickHouse HTTP is mapped to http://localhost:8123 and the native client port
+is mapped to localhost:9000.
+
+## Operations
+
+- Upgrade: \`docker compose pull && docker compose up -d\`
+- Stop: \`docker compose down\`
+- Data lives in the \`clickhouse-data\` volume at \`/var/lib/clickhouse\`.
+- Logs live in the \`clickhouse-logs\` volume at \`/var/log/clickhouse-server\`.
+- Native backups use the configured \`launchpack_backups\` disk mounted at \`/backups\`, then copy \`clickhouse-native-backup.zip\` into the launchpack backup directory.
+- Keep \`CLICKHOUSE_DB\` as a non-default database name so destructive restore can drop and recreate it safely.
+- For large or business-critical datasets, move backup storage to S3 or another remote target and practice restore on a spare stack.
+- This is an unofficial pack. It is not ClickHouse Cloud and does not imply ClickHouse, Inc. support or approval.
+`,
+    },
+    {
+      path: 'config.d/backup-disk.xml',
+      content: `<clickhouse>
+  <storage_configuration>
+    <disks>
+      <launchpack_backups>
+        <type>local</type>
+        <path>/backups/</path>
+      </launchpack_backups>
+    </disks>
+  </storage_configuration>
+  <backups>
+    <allowed_disk>launchpack_backups</allowed_disk>
+    <allowed_path>/backups/</allowed_path>
+    <allow_concurrent_backups>false</allow_concurrent_backups>
+    <allow_concurrent_restores>false</allow_concurrent_restores>
+  </backups>
+</clickhouse>
+`,
+    },
+    {
+      path: 'users.d/default-access.xml',
+      content: `<clickhouse>
+  <users>
+    <default>
+      <access_management>1</access_management>
+    </default>
+  </users>
+</clickhouse>
+`,
+    },
+    {
+      path: 'initdb.d/.gitkeep',
+      content: '',
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+APP_URL="\${APP_URL:-http://localhost:\${CLICKHOUSE_HTTP_PORT:-8123}/ping}"
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+    return
+  fi
+
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
+    return
+  fi
+
+  echo "Docker Compose is required. Install the Docker Compose plugin or docker-compose." >&2
+  exit 1
+}
+
+compose exec -T clickhouse clickhouse-client \\
+  --user "\${CLICKHOUSE_USER:-analytics}" \\
+  --password "\${CLICKHOUSE_PASSWORD:-replace-with-a-long-random-password}" \\
+  --query 'SELECT 1' >/dev/null
+
+echo "ClickHouse is reachable through the native client; HTTP is mapped at $APP_URL"
+`,
+    },
+  ],
+}
+
 const outline: Launchpack = {
   id: 'outline',
   name: 'Outline',
@@ -1950,6 +2194,7 @@ export const launchpacks = [
   sentry,
   posthog,
   grafana,
+  clickhouse,
   outline,
   supabase,
   dify,

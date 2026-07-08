@@ -20,6 +20,7 @@ test('catalog exposes the operations-ready wedges', () => {
     'sentry',
     'posthog',
     'grafana',
+    'clickhouse',
     'outline',
     'supabase',
     'dify',
@@ -274,6 +275,55 @@ test('generates a Grafana launchpack with Postgres and provisioning backups', as
     'utf8',
   )
   assert.match(dashboardProvider, /\/var\/lib\/grafana\/dashboards/)
+})
+
+test('generates a ClickHouse launchpack with native backup disk', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('clickhouse', dir)
+
+  assert.equal(result.pack.id, 'clickhouse')
+
+  const compose = await readFile(path.join(dir, 'compose.yaml'), 'utf8')
+  assert.match(compose, /clickhouse\/clickhouse-server:\$\{CLICKHOUSE_VERSION:-latest\}/)
+  assert.match(compose, /nofile:/)
+  assert.match(compose, /\/var\/lib\/clickhouse/)
+  assert.match(compose, /\/var\/log\/clickhouse-server/)
+  assert.match(compose, /\/backups/)
+  assert.match(compose, /\/etc\/clickhouse-server\/config\.d/)
+  assert.match(compose, /\/etc\/clickhouse-server\/users\.d/)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /CLICKHOUSE_DB=analytics/)
+  assert.match(env, /CLICKHOUSE_PASSWORD=/)
+
+  const backupDisk = await readFile(path.join(dir, 'config.d/backup-disk.xml'), 'utf8')
+  assert.match(backupDisk, /<allowed_disk>launchpack_backups<\/allowed_disk>/)
+  assert.match(backupDisk, /<allow_concurrent_restores>false<\/allow_concurrent_restores>/)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /ClickHouse Cloud/)
+  assert.match(readme, /clickhouse-native-backup\.zip/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /BACKUP DATABASE \$clickhouse_database TO Disk\('launchpack_backups'/)
+  assert.match(backup, /clickhouse-native-backup\.zip/)
+  assert.match(backup, /docker cp/)
+  assert.match(backup, /backup_mount 'clickhouse' '\/etc\/clickhouse-server\/config\.d'/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /DROP DATABASE IF EXISTS \$clickhouse_database/)
+  assert.match(restore, /RESTORE DATABASE \$clickhouse_database FROM Disk\('launchpack_backups'/)
+  assert.match(restore, /clickhouse-native-backup\.zip/)
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /clickhouse-client/)
+  assert.match(healthcheck, /SELECT 1/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "clickhouse"/)
+  assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
+  assert.match(manifest, /"type": "command"/)
+  assert.match(manifest, /clickhouse:\/\/localhost:9000/)
 })
 
 test('generates an Outline launchpack with auth and durable storage guidance', async () => {
