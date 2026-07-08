@@ -51,6 +51,7 @@ Every `Launchpack` in `src/catalog.ts` must include:
 | `whyNow` | Why the app deserves an operations pack now. |
 | `operationsFit` | The specific operations surface this pack helps clarify. |
 | `licenseNote` | Contributor-facing note about upstream license and use boundaries. |
+| `sizing` | Operator sizing guidance with tier, minimum CPU/RAM, storage notes, scaling constraints, and caveats. |
 | `operations.healthcheckUrl` | Default URL used by `ops/healthcheck.sh` or documented as the expected endpoint. |
 | `operations.backupTargets` | Durable state that must be backed up before upgrades or migrations. |
 | `operations.upgrade` | Upgrade command plus notes about pre-upgrade backups, version pins, and upstream release notes. |
@@ -66,6 +67,13 @@ Support model values:
   a separate upstream agreement.
 - `review-required`: license, trademark, or business-model constraints need
   case-by-case review.
+
+Sizing tier values:
+
+- `tiny-vps`: small single-service app that can start on 1 CPU core and 1 GB RAM.
+- `single-node`: normal single-node app that usually needs 2+ CPU cores and 4+ GB RAM.
+- `single-node-heavy`: single-node app with meaningful database, queue, or model-serving load.
+- `official-stack-heavy`: upstream-maintained multi-service stack where memory, disk, and restore ordering need extra validation.
 
 ## Backup Targets
 

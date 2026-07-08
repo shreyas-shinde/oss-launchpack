@@ -54,12 +54,13 @@ function printList(): void {
   const idWidth = Math.max(...packs.map((pack) => pack.id.length), 'Pack'.length)
   const nameWidth = Math.max(...packs.map((pack) => pack.name.length), 'Name'.length)
   const categoryWidth = Math.max(...packs.map((pack) => pack.category.length), 'Category'.length)
+  const tierWidth = Math.max(...packs.map((pack) => pack.sizing.tier.length), 'Tier'.length)
 
   for (const pack of packs) {
     console.log(
       `${pack.id.padEnd(idWidth)} ${pack.name.padEnd(nameWidth)} ${pack.category.padEnd(
         categoryWidth,
-      )} ${pack.supportModel}`,
+      )} ${pack.sizing.tier.padEnd(tierWidth)} ${pack.supportModel}`,
     )
   }
 }
@@ -81,6 +82,10 @@ Category: ${pack.category}
 Upstream: ${pack.upstream}
 Default port: ${pack.defaultPort}
 Support model: ${pack.supportModel}
+Sizing tier: ${pack.sizing.tier}
+Minimum host: ${pack.sizing.minimumCpuCores} CPU cores, ${pack.sizing.minimumMemoryGb} GB RAM
+Storage: ${pack.sizing.storage}
+Scaling: ${pack.sizing.scaling}
 Health check URL: ${pack.operations.healthcheckUrl}
 
 License and use note:
@@ -91,6 +96,9 @@ ${pack.whyNow}
 
 Operations fit:
 ${pack.operationsFit}
+
+Sizing notes:
+${pack.sizing.notes.map((note) => `- ${note}`).join('\n')}
 
 Backup targets:
 ${pack.operations.backupTargets

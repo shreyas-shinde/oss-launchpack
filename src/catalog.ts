@@ -10,6 +10,21 @@ export type SupportModel =
   | 'upstream-agreement-required'
   | 'review-required'
 
+export type DeploymentTier =
+  | 'tiny-vps'
+  | 'single-node'
+  | 'single-node-heavy'
+  | 'official-stack-heavy'
+
+export type LaunchpackSizing = {
+  tier: DeploymentTier
+  minimumCpuCores: number
+  minimumMemoryGb: number
+  storage: string
+  scaling: string
+  notes: string[]
+}
+
 export type BackupTarget =
   | {
       type: 'mount'
@@ -53,6 +68,7 @@ export type Launchpack = {
   whyNow: string
   operationsFit: string
   licenseNote: string
+  sizing: LaunchpackSizing
   operations: LaunchpackOperations
   files: LaunchpackFile[]
 }
@@ -70,6 +86,18 @@ const openWebUi: Launchpack = {
     'Open WebUI operations need OAuth, model routing, backups, upgrades, and GPU/CPU hosting choices documented in one inspectable pack.',
   licenseNote:
     'Unofficial launchpack. Open WebUI uses a custom permissive license with branding protection; keep upstream branding intact and do not imply official endorsement.',
+  sizing: {
+    tier: 'single-node',
+    minimumCpuCores: 2,
+    minimumMemoryGb: 4,
+    storage: '20 GB+ for app data; add separate capacity for Ollama model caches if local models are used.',
+    scaling:
+      'Start as a single-node app. Move model serving to dedicated GPU hosts or external APIs before scaling the web UI.',
+    notes: [
+      'CPU-only inference is suitable for small tests but not production-like latency.',
+      'Ollama model volume backups can become very large; decide whether models are cache or recoverable state.',
+    ],
+  },
   operations: {
     healthcheckUrl: 'http://localhost:3000',
     backupTargets: [
@@ -182,6 +210,18 @@ const n8n: Launchpack = {
     'n8n operations need customer-owned/internal deployment guidance, stable encryption keys, durable Postgres, and clear hosted-use license boundaries.',
   licenseNote:
     'n8n is fair-code under the Sustainable Use License and Enterprise License. Do not resell hosted n8n access, white-label n8n, or embed it for customers without confirming the required n8n agreement.',
+  sizing: {
+    tier: 'single-node',
+    minimumCpuCores: 2,
+    minimumMemoryGb: 4,
+    storage: '20 GB+ for Postgres and local n8n files; increase quickly for high execution history retention.',
+    scaling:
+      'Start with one n8n container and Postgres. For higher workflow volume, use queue mode with Redis and workers.',
+    notes: [
+      'Execution history retention is the main storage driver.',
+      'Keep N8N_ENCRYPTION_KEY stable before considering horizontal workers.',
+    ],
+  },
   operations: {
     healthcheckUrl: 'http://localhost:5678/healthz',
     backupTargets: [
@@ -322,6 +362,15 @@ const memos: Launchpack = {
     'Memos operations are a good starter shape for private notes, automatic backups, custom domains, and low-friction import/export.',
   licenseNote:
     'Memos is MIT-licensed upstream; preserve upstream copyright and license notices.',
+  sizing: {
+    tier: 'tiny-vps',
+    minimumCpuCores: 1,
+    minimumMemoryGb: 1,
+    storage: '5 GB+ for SQLite data and uploaded resources.',
+    scaling:
+      'Best suited to a small single-node instance; move attachments to larger storage before sharing broadly.',
+    notes: ['Resource use is usually modest unless uploaded files dominate the dataset.'],
+  },
   operations: {
     healthcheckUrl: 'http://localhost:5230',
     backupTargets: [
@@ -407,6 +456,15 @@ const uptimeKuma: Launchpack = {
     'Uptime Kuma operations need monitor setup, notification channels, incident routing, upgrades, and backup checks.',
   licenseNote:
     'Uptime Kuma is MIT-licensed upstream; preserve upstream copyright and license notices.',
+  sizing: {
+    tier: 'tiny-vps',
+    minimumCpuCores: 1,
+    minimumMemoryGb: 1,
+    storage: '5 GB+ for monitor configuration, history, and notification settings.',
+    scaling:
+      'Run one small instance for personal or team monitoring; split checks by environment if probe volume grows.',
+    notes: ['Probe interval and retained history drive database growth.'],
+  },
   operations: {
     healthcheckUrl: 'http://localhost:3001',
     backupTargets: [
@@ -494,6 +552,19 @@ const sentry: Launchpack = {
     'Sentry operations should focus on customer-owned self-hosted installations, upgrade help, backup validation, and migration planning with clear upstream boundaries.',
   licenseNote:
     'Sentry self-hosted is Fair Source under FSL-1.1-Apache-2.0. Internal/customer-owned deployments and professional services can fit the license, but selling deployed self-hosted Sentry as SaaS or a similar commercial offering is prohibited by upstream terms.',
+  sizing: {
+    tier: 'official-stack-heavy',
+    minimumCpuCores: 4,
+    minimumMemoryGb: 16,
+    storage:
+      '100 GB+ recommended for test event ingestion; historical event retention can require much more.',
+    scaling:
+      'Use the official self-hosted topology for low-volume deployments. Treat higher event volume as a dedicated observability platform project.',
+    notes: [
+      'The generated backup delegates to upstream partial JSON export and does not cover historical events.',
+      'Disk pressure and queue lag are common early bottlenecks.',
+    ],
+  },
   operations: {
     healthcheckUrl: 'http://localhost:9000',
     backupTargets: [
@@ -645,6 +716,19 @@ const posthog: Launchpack = {
     'PostHog operations should focus on customer-owned hobby deployments, backup validation, upgrade help, and migration planning without implying upstream support.',
   licenseNote:
     'PostHog open-source self-hosted deployments are MIT licensed and provided without guarantee. The upstream repository also contains an ee/ directory under a separate Enterprise license; preserve upstream notices and do not assume paid features or upstream support are included.',
+  sizing: {
+    tier: 'official-stack-heavy',
+    minimumCpuCores: 4,
+    minimumMemoryGb: 16,
+    storage:
+      '100 GB+ for ClickHouse, Postgres, object storage, Kafka, Redis, and proxy state; event volume dominates.',
+    scaling:
+      'Use the upstream hobby deployment only for small deployments. Larger analytics workloads need a deliberate data-stack plan.',
+    notes: [
+      'ClickHouse and object storage usually become the first capacity constraints.',
+      'Stop write-heavy ingestion before relying on volume-snapshot restores.',
+    ],
+  },
   operations: {
     healthcheckUrl: 'http://localhost/_health',
     backupTargets: [
@@ -827,6 +911,18 @@ const outline: Launchpack = {
     'Outline operations should focus on customer-owned team deployments, SSO/OIDC setup, backups, upgrades, and migration help with clear BSL use boundaries.',
   licenseNote:
     'Outline is BSL-1.1 licensed. Current versions allow internal/customer-owned use but prohibit using the software for a commercial Document Service where third parties create teams and documents they control. Versions convert to Apache-2.0 on their BSL change date; review the upstream LICENSE for the exact version and date.',
+  sizing: {
+    tier: 'single-node',
+    minimumCpuCores: 2,
+    minimumMemoryGb: 4,
+    storage: '20 GB+ for Postgres, Redis persistence, and local attachment storage.',
+    scaling:
+      'Start as a single-node team wiki; move file storage to S3-compatible storage before multi-host scaling.',
+    notes: [
+      'Attachment volume, not documents, usually drives storage growth.',
+      'At least one auth provider is required before real team use.',
+    ],
+  },
   operations: {
     healthcheckUrl: 'http://localhost:3000',
     backupTargets: [
@@ -1021,6 +1117,19 @@ const supabase: Launchpack = {
     'Supabase operations need an official-stack wrapper, secret generation checklist, backup boundaries for Postgres/storage/functions/config, and upgrade notes that keep service versions coordinated.',
   licenseNote:
     'The Supabase repository is Apache-2.0 licensed. Self-hosted Supabase is community-supported and omits several managed-platform features; preserve upstream notices, review included service licenses, and do not imply official Supabase Cloud support.',
+  sizing: {
+    tier: 'official-stack-heavy',
+    minimumCpuCores: 4,
+    minimumMemoryGb: 8,
+    storage:
+      '40 GB+ for Postgres, local Storage, functions, snippets, and db-config secrets; database and object storage growth dominate.',
+    scaling:
+      'Use the official single-project Docker stack first. For serious workloads, move Storage to S3-compatible storage and plan Postgres capacity separately.',
+    notes: [
+      'Self-hosted Supabase is not the managed Supabase platform and omits managed backups/PITR.',
+      'The pgsodium key and .env are recovery-critical configuration, not optional metadata.',
+    ],
+  },
   operations: {
     healthcheckUrl: 'http://localhost:8000/rest/v1/',
     backupTargets: [
@@ -1240,6 +1349,19 @@ const dify: Launchpack = {
     'Dify operations need an official-stack wrapper, release pinning, secret rotation checklist, backup boundaries for Postgres/storage/plugins/vector data, and clear license boundaries around multi-tenant use.',
   licenseNote:
     'Dify uses a modified Apache-2.0 license. Commercial use is allowed, but operating a multi-tenant environment requires written Dify authorization; frontend logo/copyright notices must not be removed or modified. Review the upstream LICENSE before offering Dify to multiple tenants.',
+  sizing: {
+    tier: 'official-stack-heavy',
+    minimumCpuCores: 4,
+    minimumMemoryGb: 8,
+    storage:
+      '50 GB+ for Postgres, uploads, plugin daemon state, Redis, and the selected vector store; add capacity for local model or file workloads.',
+    scaling:
+      'Start with the official single-node Docker stack. Split workers, vector stores, and model providers as usage grows.',
+    notes: [
+      'Model-provider traffic and vector-store choice dominate runtime cost and capacity.',
+      'Keep SECRET_KEY and plugin storage stable across restores.',
+    ],
+  },
   operations: {
     healthcheckUrl: 'http://localhost',
     backupTargets: [
@@ -1472,6 +1594,15 @@ const homepage: Launchpack = {
     'Homepage operations need service discovery, curated dashboards, Docker integration, secret handling, and upgrade checks.',
   licenseNote:
     'Homepage is GPL-3.0-licensed upstream. Preserve notices and review GPL obligations before distributing modified versions or bundled distributions.',
+  sizing: {
+    tier: 'tiny-vps',
+    minimumCpuCores: 1,
+    minimumMemoryGb: 1,
+    storage: '1 GB+ for YAML configuration and small static assets.',
+    scaling:
+      'Run as a tiny single-node dashboard. Keep Docker socket access disabled unless the host-risk tradeoff is understood.',
+    notes: ['External service widgets can make network reachability more important than CPU or memory.'],
+  },
   operations: {
     healthcheckUrl: 'http://localhost:3000',
     backupTargets: [

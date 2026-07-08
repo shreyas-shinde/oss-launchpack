@@ -39,18 +39,18 @@ multi-customer use.
 
 ## Initial Catalog
 
-| Pack | Category | Support model | Upstream | Operational wedge |
-| --- | --- | --- | --- | --- |
-| `open-webui` | AI interface | `review-required` | <https://github.com/open-webui/open-webui> | Private AI chat hosting, model routing, upgrades |
-| `n8n` | Automation | `customer-owned-only` | <https://github.com/n8n-io/n8n> | Customer-owned/internal deployments, backups, upgrade support |
-| `memos` | Personal knowledge | `permissive-hosting-fit` | <https://github.com/usememos/memos> | Private notes hosting, backups, custom domains |
-| `uptime-kuma` | Monitoring | `permissive-hosting-fit` | <https://github.com/louislam/uptime-kuma> | Monitor setup, notification channels, incident routing |
-| `sentry` | Observability | `customer-owned-only` | <https://github.com/getsentry/self-hosted> | Customer-owned self-hosted setup, backup validation, upgrade support |
-| `posthog` | Product analytics | `customer-owned-only` | <https://github.com/PostHog/posthog> | Customer-owned hobby deployment, backups, upgrade support |
-| `outline` | Team knowledge | `customer-owned-only` | <https://github.com/outline/outline> | Customer-owned team wiki, SSO/OIDC setup, backups |
-| `supabase` | Backend platform | `permissive-hosting-fit` | <https://github.com/supabase/supabase/tree/master/docker> | Official Docker stack wrapper, Postgres/storage/functions backup boundaries |
-| `dify` | AI application platform | `upstream-agreement-required` | <https://github.com/langgenius/dify/tree/main/docker> | Official Docker stack wrapper, Postgres/storage/plugin/vector backup boundaries |
-| `homepage` | Dashboard | `review-required` | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
+| Pack | Category | Tier | Support model | Upstream | Operational wedge |
+| --- | --- | --- | --- | --- | --- |
+| `open-webui` | AI interface | `single-node` | `review-required` | <https://github.com/open-webui/open-webui> | Private AI chat hosting, model routing, upgrades |
+| `n8n` | Automation | `single-node` | `customer-owned-only` | <https://github.com/n8n-io/n8n> | Customer-owned/internal deployments, backups, upgrade support |
+| `memos` | Personal knowledge | `tiny-vps` | `permissive-hosting-fit` | <https://github.com/usememos/memos> | Private notes hosting, backups, custom domains |
+| `uptime-kuma` | Monitoring | `tiny-vps` | `permissive-hosting-fit` | <https://github.com/louislam/uptime-kuma> | Monitor setup, notification channels, incident routing |
+| `sentry` | Observability | `official-stack-heavy` | `customer-owned-only` | <https://github.com/getsentry/self-hosted> | Customer-owned self-hosted setup, backup validation, upgrade support |
+| `posthog` | Product analytics | `official-stack-heavy` | `customer-owned-only` | <https://github.com/PostHog/posthog> | Customer-owned hobby deployment, backups, upgrade support |
+| `outline` | Team knowledge | `single-node` | `customer-owned-only` | <https://github.com/outline/outline> | Customer-owned team wiki, SSO/OIDC setup, backups |
+| `supabase` | Backend platform | `official-stack-heavy` | `permissive-hosting-fit` | <https://github.com/supabase/supabase/tree/master/docker> | Official Docker stack wrapper, Postgres/storage/functions backup boundaries |
+| `dify` | AI application platform | `official-stack-heavy` | `upstream-agreement-required` | <https://github.com/langgenius/dify/tree/main/docker> | Official Docker stack wrapper, Postgres/storage/plugin/vector backup boundaries |
+| `homepage` | Dashboard | `tiny-vps` | `review-required` | <https://github.com/gethomepage/homepage> | Curated service dashboards, config, upgrade support |
 
 Support model meanings:
 

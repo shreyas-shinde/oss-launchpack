@@ -36,6 +36,7 @@ This launchpack is maintained by OSS Launchpack and is not an official upstream 
 - App: ${pack.name}
 - Upstream: ${pack.upstream}
 - Support model: ${pack.supportModel}
+- Sizing tier: ${pack.sizing.tier}
 - License/commercial-use note: ${pack.licenseNote}
 
 Review the upstream project's current license, trademark policy, and commercial terms before offering this app as a hosted service or embedding it in another product.
@@ -69,6 +70,7 @@ Review the upstream project's current license, trademark policy, and commercial 
           upstream: pack.upstream,
           supportModel: pack.supportModel,
           licenseNote: pack.licenseNote,
+          sizing: pack.sizing,
           operations: pack.operations,
           generatedBy: 'oss-launchpack',
         },
@@ -133,6 +135,7 @@ function renderOperationsManifest(pack: Launchpack): string {
       name: pack.name,
       upstream: pack.upstream,
       supportModel: pack.supportModel,
+      sizing: pack.sizing,
       healthcheckUrl: pack.operations.healthcheckUrl,
       backupTargets: pack.operations.backupTargets,
       upgrade: pack.operations.upgrade,
@@ -147,10 +150,22 @@ function renderOperationsGuide(pack: Launchpack): string {
     .map((target) => `- \`${target.id}\` (${target.type}): ${target.description}`)
     .join('\n')
   const upgradeNotes = pack.operations.upgrade.notes.map((note) => `- ${note}`).join('\n')
+  const sizingNotes = pack.sizing.notes.map((note) => `- ${note}`).join('\n')
 
   return `# Operations Guide
 
 This guide is generated from the ${pack.name} launchpack metadata.
+
+## Sizing
+
+- Tier: \`${pack.sizing.tier}\`
+- Minimum host: ${pack.sizing.minimumCpuCores} CPU cores, ${pack.sizing.minimumMemoryGb} GB RAM
+- Storage: ${pack.sizing.storage}
+- Scaling: ${pack.sizing.scaling}
+
+Notes:
+
+${sizingNotes}
 
 ## Health Check
 

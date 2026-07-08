@@ -26,6 +26,17 @@ test('catalog exposes the operations-ready wedges', () => {
   ])
   assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
   assert.equal(listLaunchpacks().every((pack) => pack.supportModel.length > 0), true)
+  assert.equal(
+    listLaunchpacks().every(
+      (pack) =>
+        pack.sizing.minimumCpuCores > 0 &&
+        pack.sizing.minimumMemoryGb > 0 &&
+        pack.sizing.storage.length > 0 &&
+        pack.sizing.scaling.length > 0 &&
+        pack.sizing.notes.length > 0,
+    ),
+    true,
+  )
   assert.equal(listLaunchpacks().every((pack) => pack.operations.backupTargets.length > 0), true)
   assert.notEqual(
     listLaunchpacks().find((pack) => pack.id === 'n8n')?.supportModel,
@@ -40,6 +51,7 @@ test('contribution guide documents launchpack requirements', async () => {
   assert.match(readme, /CONTRIBUTING\.md/)
   assert.match(guide, /supportModel/)
   assert.match(guide, /licenseNote/)
+  assert.match(guide, /sizing/)
   assert.match(guide, /operations\.healthcheckUrl/)
   assert.match(guide, /operations\.backupTargets/)
   assert.match(guide, /operations\.upgrade/)
@@ -74,6 +86,8 @@ test('generates a launchpack without overwriting by default', async () => {
 
   const operations = await readFile(path.join(dir, 'OPERATIONS.md'), 'utf8')
   assert.match(operations, /Backup targets/)
+  assert.match(operations, /## Sizing/)
+  assert.match(operations, /Minimum host: 2 CPU cores, 4 GB RAM/)
 
   await assert.rejects(
     () => generateLaunchpack('open-webui', dir),
@@ -101,6 +115,8 @@ test('generates database backup and restore scripts for Postgres-backed packs', 
 
   const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
   assert.match(manifest, /"schema": "oss-launchpack\/ops\/v1"/)
+  assert.match(manifest, /"sizing":/)
+  assert.match(manifest, /"tier": "single-node"/)
   assert.match(manifest, /"type": "postgres"/)
 })
 
@@ -317,10 +333,13 @@ test('force mode regenerates an existing launchpack', async () => {
   assert.match(manifest, /"pack": "memos"/)
   assert.match(manifest, /"supportModel": "permissive-hosting-fit"/)
   assert.match(manifest, /"licenseNote": "Memos is MIT-licensed upstream/)
+  assert.match(manifest, /"sizing":/)
+  assert.match(manifest, /"tier": "tiny-vps"/)
   assert.match(manifest, /"operations":/)
 
   const upstream = await readFile(path.join(dir, 'UPSTREAM.md'), 'utf8')
   assert.match(upstream, /Upstream and License Notes/)
+  assert.match(upstream, /Sizing tier: tiny-vps/)
   assert.match(upstream, /MIT-licensed upstream/)
   assert.equal(result.pack.name, 'Memos')
 })
