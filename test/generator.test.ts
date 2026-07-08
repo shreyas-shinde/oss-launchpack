@@ -19,6 +19,7 @@ test('catalog exposes the operations-ready wedges', () => {
     'uptime-kuma',
     'sentry',
     'posthog',
+    'grafana',
     'outline',
     'supabase',
     'dify',
@@ -225,6 +226,54 @@ test('generates a PostHog wrapper with hobby deployment backup targets', async (
   assert.match(manifest, /"pack": "posthog"/)
   assert.match(manifest, /"supportModel": "customer-owned-only"/)
   assert.match(manifest, /"id": "posthog-clickhouse"/)
+})
+
+test('generates a Grafana launchpack with Postgres and provisioning backups', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('grafana', dir)
+
+  assert.equal(result.pack.id, 'grafana')
+
+  const compose = await readFile(path.join(dir, 'compose.yaml'), 'utf8')
+  assert.match(compose, /grafana\/grafana:\$\{GRAFANA_VERSION:-latest\}/)
+  assert.match(compose, /postgres:16-alpine/)
+  assert.match(compose, /GF_DATABASE_TYPE: postgres/)
+  assert.match(compose, /\/var\/lib\/grafana/)
+  assert.match(compose, /\/etc\/grafana\/provisioning/)
+  assert.match(compose, /\/var\/lib\/grafana\/dashboards/)
+
+  const env = await readFile(path.join(dir, '.env.example'), 'utf8')
+  assert.match(env, /GRAFANA_ADMIN_PASSWORD=/)
+  assert.match(env, /POSTGRES_PASSWORD=/)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /Grafana Cloud/)
+  assert.match(readme, /AGPL-3\.0-only/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /backup_postgres 'postgres' 'POSTGRES_USER' 'POSTGRES_DB' 'grafana-postgres\.sql'/)
+  assert.match(backup, /backup_mount 'grafana' '\/var\/lib\/grafana' 'grafana-data\.tar\.gz'/)
+  assert.match(
+    backup,
+    /backup_mount 'grafana' '\/etc\/grafana\/provisioning' 'grafana-provisioning\.tar\.gz'/,
+  )
+  assert.match(
+    backup,
+    /backup_mount 'grafana' '\/var\/lib\/grafana\/dashboards' 'grafana-dashboards\.tar\.gz'/,
+  )
+
+  const healthcheck = await readFile(path.join(dir, 'ops/healthcheck.sh'), 'utf8')
+  assert.match(healthcheck, /\/api\/health/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "grafana"/)
+  assert.match(manifest, /"supportModel": "customer-owned-only"/)
+
+  const dashboardProvider = await readFile(
+    path.join(dir, 'provisioning/dashboards/default.yaml'),
+    'utf8',
+  )
+  assert.match(dashboardProvider, /\/var\/lib\/grafana\/dashboards/)
 })
 
 test('generates an Outline launchpack with auth and durable storage guidance', async () => {

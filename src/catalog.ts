@@ -898,6 +898,207 @@ echo "PostHog is reachable at $APP_URL"
   ],
 }
 
+const grafana: Launchpack = {
+  id: 'grafana',
+  name: 'Grafana',
+  category: 'Observability',
+  upstream: 'https://github.com/grafana/grafana',
+  defaultPort: 3000,
+  supportModel: 'customer-owned-only',
+  whyNow:
+    'Grafana is the default dashboard layer for many self-hosted and platform teams, but durable installs still need a database, provisioning layout, plugin handling, backups, and upgrade discipline.',
+  operationsFit:
+    'Grafana operations should focus on customer-owned deployments: Postgres-backed state, provisioned dashboards and datasources, plugin compatibility, backups, and clean upgrade checks without implying Grafana Labs support.',
+  licenseNote:
+    'Grafana OSS is AGPL-3.0-only with Apache-2.0 exceptions. Use this pack for customer-owned self-managed deployments, preserve notices and source obligations, and do not use Grafana Labs marks as a product or service name or imply endorsement.',
+  sizing: {
+    tier: 'single-node',
+    minimumCpuCores: 2,
+    minimumMemoryGb: 2,
+    storage:
+      '10 GB+ for Postgres, plugins, snapshots, local images, and provisioned dashboards; connected telemetry stays in external data sources.',
+    scaling:
+      'Start as a single-node Grafana instance with Postgres. For HA, move Postgres to managed/external infrastructure and provision plugins, dashboards, and datasources consistently across replicas.',
+    notes: [
+      'Dashboard query cost usually lands on connected data sources, but Grafana still needs stable database and plugin state.',
+      'Provision dashboards and datasources from files so restores can be audited and repeated.',
+    ],
+  },
+  operations: {
+    healthcheckUrl: 'http://localhost:3000/api/health',
+    backupTargets: [
+      {
+        type: 'postgres',
+        id: 'grafana-postgres',
+        service: 'postgres',
+        databaseEnv: 'POSTGRES_DB',
+        userEnv: 'POSTGRES_USER',
+        description: 'Grafana users, organizations, folders, dashboards, datasources, alerts, and app metadata.',
+      },
+      {
+        type: 'mount',
+        id: 'grafana-data',
+        service: 'grafana',
+        path: '/var/lib/grafana',
+        description: 'Grafana plugins, local images, snapshots, and runtime data outside the Postgres database.',
+      },
+      {
+        type: 'mount',
+        id: 'grafana-provisioning',
+        service: 'grafana',
+        path: '/etc/grafana/provisioning',
+        description: 'Provisioned datasources, dashboards, alerting, and access-control files.',
+      },
+      {
+        type: 'mount',
+        id: 'grafana-dashboards',
+        service: 'grafana',
+        path: '/var/lib/grafana/dashboards',
+        description: 'Provisioned dashboard JSON files mounted into Grafana.',
+      },
+    ],
+    upgrade: {
+      command: 'docker compose pull && docker compose up -d',
+      notes: [
+        'Back up Postgres, Grafana data, provisioning files, and dashboard JSON before major upgrades.',
+        'Keep database credentials and admin credentials stable across container recreation.',
+        'Review Grafana release notes and plugin compatibility before changing GRAFANA_VERSION.',
+        'Use external Postgres and repeatable provisioning before running multiple Grafana replicas.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: 'compose.yaml',
+      content: `services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "\${POSTGRES_DB:-grafana}"
+      POSTGRES_USER: "\${POSTGRES_USER:-grafana}"
+      POSTGRES_PASSWORD: "\${POSTGRES_PASSWORD:-replace-with-a-long-random-password}"
+    volumes:
+      - grafana-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \${POSTGRES_USER:-grafana} -d \${POSTGRES_DB:-grafana}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:\${GRAFANA_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "\${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_DATABASE_TYPE: postgres
+      GF_DATABASE_HOST: postgres:5432
+      GF_DATABASE_NAME: "\${POSTGRES_DB:-grafana}"
+      GF_DATABASE_USER: "\${POSTGRES_USER:-grafana}"
+      GF_DATABASE_PASSWORD: "\${POSTGRES_PASSWORD:-replace-with-a-long-random-password}"
+      GF_SECURITY_ADMIN_USER: "\${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "\${GRAFANA_ADMIN_PASSWORD:-replace-with-a-long-random-password}"
+      GF_SERVER_ROOT_URL: "\${GRAFANA_ROOT_URL:-http://localhost:3000}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PLUGINS_PREINSTALL: "\${GRAFANA_PLUGINS_PREINSTALL:-}"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards
+
+volumes:
+  grafana-postgres-data:
+  grafana-data:
+`,
+    },
+    {
+      path: '.env.example',
+      content: `GRAFANA_PORT=3000
+GRAFANA_VERSION=latest
+GRAFANA_ADMIN_USER=admin
+GRAFANA_ADMIN_PASSWORD=replace-with-a-long-random-password
+GRAFANA_ROOT_URL=http://localhost:3000
+GRAFANA_PLUGINS_PREINSTALL=
+POSTGRES_DB=grafana
+POSTGRES_USER=grafana
+POSTGRES_PASSWORD=replace-with-a-long-random-password
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# Grafana Launchpack
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+# Edit passwords and GRAFANA_ROOT_URL before first production use.
+docker compose up -d
+./ops/healthcheck.sh
+\`\`\`
+
+Open http://localhost:3000 and sign in with \`GRAFANA_ADMIN_USER\` and
+\`GRAFANA_ADMIN_PASSWORD\`.
+
+## Operations
+
+- Upgrade: \`docker compose pull && docker compose up -d\`
+- Stop: \`docker compose down\`
+- Grafana state uses Postgres instead of the default SQLite database so database backups can be consistent without stopping Grafana for file-copy safety.
+- Provisioning files live under \`./provisioning\`; provisioned dashboard JSON lives under \`./dashboards\`.
+- Add plugin IDs to \`GRAFANA_PLUGINS_PREINSTALL\` and test plugin compatibility before production upgrades.
+- Set \`GRAFANA_ROOT_URL\` to the external HTTPS URL before putting Grafana behind a reverse proxy.
+- This is an unofficial customer-owned deployment pack. It is not Grafana Cloud, does not include Enterprise features, and does not imply Grafana Labs support.
+- Grafana OSS is AGPL-3.0-only with Apache-2.0 exceptions; preserve notices and review source/offering obligations before commercial use.
+`,
+    },
+    {
+      path: 'provisioning/dashboards/default.yaml',
+      content: `apiVersion: 1
+
+providers:
+  - name: OSS Launchpack
+    orgId: 1
+    folder: OSS Launchpack
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
+`,
+    },
+    {
+      path: 'provisioning/datasources/.gitkeep',
+      content: '',
+    },
+    {
+      path: 'dashboards/.gitkeep',
+      content: '',
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+APP_URL="\${APP_URL:-http://localhost:\${GRAFANA_PORT:-3000}/api/health}"
+curl -fsS "$APP_URL" >/dev/null
+echo "Grafana is reachable at $APP_URL"
+`,
+    },
+  ],
+}
+
 const outline: Launchpack = {
   id: 'outline',
   name: 'Outline',
@@ -1748,6 +1949,7 @@ export const launchpacks = [
   uptimeKuma,
   sentry,
   posthog,
+  grafana,
   outline,
   supabase,
   dify,
