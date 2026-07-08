@@ -189,3 +189,18 @@ Set `POSTHOG_SOURCE_REF` to pin the upstream Compose files. Set
 `KEEP_POSTHOG_VALIDATION=1` to leave the generated stack in place for manual
 inspection. Otherwise the script removes its containers and volumes before it
 exits.
+
+The Qdrant smoke test generates `tmp/qdrant`, starts the generated Compose pack
+on test-only ports, writes a known vector point into a collection, backs up the
+generated storage and snapshot volumes, deletes the collection, restores the
+volume backup while Qdrant is stopped, restarts Qdrant, and verifies the point
+payload marker returns:
+
+```bash
+scripts/validate-qdrant-backup-restore.sh
+```
+
+Set `QDRANT_VALIDATION_HTTP_PORT` and `QDRANT_VALIDATION_GRPC_PORT` to override
+the default test ports. Set `KEEP_QDRANT_VALIDATION=1` to leave the generated
+stack in place for manual inspection. Otherwise the script removes its
+containers and volumes before it exits.

@@ -73,6 +73,9 @@ test('contribution guide documents launchpack requirements', async () => {
   assert.match(guide, /scripts\/validate-posthog-backup-restore\.sh/)
   assert.match(guide, /upstream\s+hobby Compose files/)
   assert.match(guide, /Postgres, ClickHouse, SeaweedFS, object storage, Kafka, Redis, and/)
+  assert.match(guide, /scripts\/validate-qdrant-backup-restore\.sh/)
+  assert.match(guide, /known vector point/)
+  assert.match(guide, /KEEP_QDRANT_VALIDATION/)
 })
 
 test('generates a launchpack without overwriting by default', async () => {
@@ -190,6 +193,22 @@ test('PostHog backup restore validator is repeatable shell', async () => {
   assert.match(content, /posthog-clickhouse\.tar\.gz/)
   assert.match(content, /posthog-objectstorage\.tar\.gz/)
   assert.match(content, /KEEP_POSTHOG_VALIDATION/)
+
+  const scriptStat = await stat(script)
+  assert.equal((scriptStat.mode & 0o111) > 0, true)
+})
+
+test('Qdrant backup restore validator is repeatable shell', async () => {
+  const script = 'scripts/validate-qdrant-backup-restore.sh'
+  await execFileAsync('sh', ['-n', script])
+
+  const content = await readFile(script, 'utf8')
+  assert.match(content, /QDRANT_VALIDATION_HTTP_PORT/)
+  assert.match(content, /oss_launchpack_validation/)
+  assert.match(content, /qdrant-storage\.tar\.gz/)
+  assert.match(content, /qdrant-snapshots\.tar\.gz/)
+  assert.match(content, /CONFIRM_RESTORE=yes/)
+  assert.match(content, /KEEP_QDRANT_VALIDATION/)
 
   const scriptStat = await stat(script)
   assert.equal((scriptStat.mode & 0o111) > 0, true)
