@@ -26,6 +26,8 @@
     "managed-deployment",
     "observability",
     "sentry",
+    "analytics",
+    "posthog",
     "oss"
   ],
   "author": "Shreyas Shinde",

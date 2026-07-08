@@ -12,7 +12,15 @@ const execFileAsync = promisify(execFile)
 
 test('catalog exposes the initial managed-deployment wedges', () => {
   const ids = listLaunchpacks().map((pack) => pack.id)
-  assert.deepEqual(ids, ['open-webui', 'n8n', 'memos', 'uptime-kuma', 'sentry', 'homepage'])
+  assert.deepEqual(ids, [
+    'open-webui',
+    'n8n',
+    'memos',
+    'uptime-kuma',
+    'sentry',
+    'posthog',
+    'homepage',
+  ])
   assert.equal(listLaunchpacks().every((pack) => pack.licenseNote.length > 0), true)
   assert.equal(listLaunchpacks().every((pack) => pack.supportModel.length > 0), true)
   assert.equal(listLaunchpacks().every((pack) => pack.operations.backupTargets.length > 0), true)
@@ -95,6 +103,37 @@ test('generates a Sentry wrapper around the official self-hosted repository', as
   const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
   assert.match(manifest, /"type": "command"/)
   assert.match(manifest, /"supportModel": "customer-owned-only"/)
+})
+
+test('generates a PostHog wrapper with hobby deployment backup targets', async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'oss-launchpack-'))
+  const result = await generateLaunchpack('posthog', dir)
+
+  assert.equal(result.files.some((file) => file.endsWith('compose.yaml')), false)
+
+  const readme = await readFile(path.join(dir, 'README.md'), 'utf8')
+  assert.match(readme, /wraps PostHog's official Docker Compose hobby deployment/)
+  assert.match(readme, /do not present it as PostHog Cloud/)
+
+  const install = await readFile(path.join(dir, 'ops/install-official.sh'), 'utf8')
+  assert.match(install, /raw\.githubusercontent\.com\/posthog\/posthog\/HEAD\/bin\/deploy-hobby/)
+  assert.match(install, /POSTHOG_DOMAIN/)
+
+  const backup = await readFile(path.join(dir, 'ops/backup.sh'), 'utf8')
+  assert.match(backup, /backup_mount 'db' '\/var\/lib\/postgresql\/data' 'posthog-postgres\.tar\.gz'/)
+  assert.match(
+    backup,
+    /backup_mount 'clickhouse' '\/var\/lib\/clickhouse' 'posthog-clickhouse\.tar\.gz'/,
+  )
+  assert.match(backup, /backup_mount 'seaweedfs' '\/data' 'posthog-seaweedfs\.tar\.gz'/)
+
+  const restore = await readFile(path.join(dir, 'ops/restore.sh'), 'utf8')
+  assert.match(restore, /restore_mount 'objectstorage' '\/data' 'posthog-objectstorage\.tar\.gz'/)
+
+  const manifest = await readFile(path.join(dir, 'ops/manifest.json'), 'utf8')
+  assert.match(manifest, /"pack": "posthog"/)
+  assert.match(manifest, /"supportModel": "customer-owned-only"/)
+  assert.match(manifest, /"id": "posthog-clickhouse"/)
 })
 
 test('generated operation scripts are valid shell syntax', async () => {

@@ -626,6 +626,188 @@ echo "Sentry is reachable at $APP_URL"
   ],
 }
 
+const posthog: Launchpack = {
+  id: 'posthog',
+  name: 'PostHog',
+  category: 'Product analytics',
+  upstream: 'https://github.com/PostHog/posthog',
+  defaultPort: 80,
+  supportModel: 'customer-owned-only',
+  whyNow:
+    'PostHog is a large open-source product-engineering platform, but its self-hosted hobby deployment has a real data stack behind it: Postgres, ClickHouse, Redis, Kafka, object storage, and proxy state.',
+  managedOpportunity:
+    'PostHog work should focus on customer-owned hobby deployments, backup validation, upgrade help, and migration planning. Do not market this as a PostHog Cloud replacement or imply upstream support.',
+  licenseNote:
+    'PostHog open-source self-hosted deployments are MIT licensed and provided without guarantee. The upstream repository also contains an ee/ directory under a separate Enterprise license; preserve upstream notices and do not assume paid features or upstream support are included.',
+  operations: {
+    healthcheckUrl: 'http://localhost/_health',
+    backupTargets: [
+      {
+        type: 'mount',
+        id: 'posthog-postgres',
+        service: 'db',
+        path: '/var/lib/postgresql/data',
+        description: 'PostHog relational data, teams, users, projects, and metadata.',
+      },
+      {
+        type: 'mount',
+        id: 'posthog-clickhouse',
+        service: 'clickhouse',
+        path: '/var/lib/clickhouse',
+        description: 'High-volume analytics event data stored in ClickHouse.',
+      },
+      {
+        type: 'mount',
+        id: 'posthog-seaweedfs',
+        service: 'seaweedfs',
+        path: '/data',
+        description: 'SeaweedFS object storage used for recordings and object-backed data.',
+      },
+      {
+        type: 'mount',
+        id: 'posthog-objectstorage',
+        service: 'objectstorage',
+        path: '/data',
+        description: 'MinIO object storage retained for hobby deployment storage migrations.',
+      },
+      {
+        type: 'mount',
+        id: 'posthog-kafka',
+        service: 'kafka',
+        path: '/bitnami/kafka',
+        description: 'Kafka/Redpanda broker state and queued ingestion data.',
+      },
+      {
+        type: 'mount',
+        id: 'posthog-redis',
+        service: 'redis7',
+        path: '/data',
+        description: 'Redis cache and queue state used by the hobby deployment.',
+      },
+      {
+        type: 'mount',
+        id: 'posthog-caddy-data',
+        service: 'proxy',
+        path: '/data',
+        description: 'Caddy certificate and proxy runtime data.',
+      },
+      {
+        type: 'mount',
+        id: 'posthog-caddy-config',
+        service: 'proxy',
+        path: '/config',
+        description: 'Caddy proxy configuration state.',
+      },
+    ],
+    upgrade: {
+      command: '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/posthog/posthog/HEAD/bin/upgrade-hobby)"',
+      notes: [
+        'Back up all stateful volumes before running the upstream upgrade script.',
+        'PostHog does not publish tagged releases for self-hosted; the hobby deployment follows the upstream script and image tags.',
+        'The open-source hobby deployment is intended for small deployments and is provided without commercial support or guarantees.',
+        'Kubernetes self-hosting support has been sunset; use the Docker Compose hobby path unless you have a separate reason to operate your own stack.',
+      ],
+    },
+  },
+  files: [
+    {
+      path: '.env.example',
+      content: `POSTHOG_DOMAIN=posthog.example.com
+POSTHOG_APP_TAG=latest
+POSTHOG_USE_STAGING_TLS=0
+POSTHOG_HEALTH_URL=http://localhost/_health
+`,
+    },
+    {
+      path: 'README.md',
+      content: `# PostHog Launchpack
+
+This pack wraps PostHog's official Docker Compose hobby deployment instead of
+copying the large upstream Compose stack. That keeps installs closer to current
+upstream behavior while adding an inspectable operations manifest and backup
+surface.
+
+## Start
+
+\`\`\`bash
+cp .env.example .env
+# Set POSTHOG_DOMAIN to a real domain with an A record pointing at this host.
+./ops/install-official.sh
+./ops/healthcheck.sh
+\`\`\`
+
+Open https://your-domain.example after the upstream installer finishes.
+
+## Operations
+
+- PostHog's hobby deployment is MIT licensed and provided without guarantees.
+- The official installer requires Linux, sudo, Docker access, a public domain, and enough memory for a data-heavy stack.
+- PostHog Cloud is the upstream-recommended path for most teams.
+- Backups are Docker-volume snapshots of the current hobby deployment's stateful services.
+- Stop write-heavy traffic before backup/restore when using this for production-like data.
+- This pack is for customer-owned deployments and professional services; do not present it as PostHog Cloud or upstream-supported PostHog.
+`,
+    },
+    {
+      path: 'ops/install-official.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+POSTHOG_DOMAIN="\${POSTHOG_DOMAIN:-}"
+POSTHOG_APP_TAG="\${POSTHOG_APP_TAG:-latest}"
+POSTHOG_USE_STAGING_TLS="\${POSTHOG_USE_STAGING_TLS:-0}"
+
+if [ -z "$POSTHOG_DOMAIN" ] || [ "$POSTHOG_DOMAIN" = "posthog.example.com" ]; then
+  echo "Set POSTHOG_DOMAIN in .env to a real domain before installing PostHog." >&2
+  exit 1
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required to download PostHog's official hobby installer." >&2
+  exit 1
+fi
+
+if ! command -v bash >/dev/null 2>&1; then
+  echo "bash is required to run PostHog's official hobby installer." >&2
+  exit 1
+fi
+
+tls_arg=""
+if [ "$POSTHOG_USE_STAGING_TLS" = "1" ]; then
+  tls_arg="staging"
+fi
+
+curl -fsSL https://raw.githubusercontent.com/posthog/posthog/HEAD/bin/deploy-hobby \\
+  | SKIP_HEALTH_CHECK="\${SKIP_HEALTH_CHECK:-}" bash -s -- "$POSTHOG_APP_TAG" "$POSTHOG_DOMAIN" "$tls_arg"
+`,
+    },
+    {
+      path: 'ops/healthcheck.sh',
+      executable: true,
+      content: `#!/usr/bin/env sh
+set -eu
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+APP_URL="\${APP_URL:-\${POSTHOG_HEALTH_URL:-http://localhost/_health}}"
+curl -fsS "$APP_URL" >/dev/null
+echo "PostHog is reachable at $APP_URL"
+`,
+    },
+  ],
+}
+
 const homepage: Launchpack = {
   id: 'homepage',
   name: 'Homepage',
@@ -756,6 +938,7 @@ export const launchpacks = [
   memos,
   uptimeKuma,
   sentry,
+  posthog,
   homepage,
 ] as const satisfies readonly Launchpack[]
 

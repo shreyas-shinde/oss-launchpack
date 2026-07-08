@@ -20,6 +20,7 @@ body:
         - Memos
         - Uptime Kuma
         - Sentry
+        - PostHog
         - Homepage
         - Other
     validations:

@@ -219,6 +219,21 @@ if [ -f .env ]; then
   set +a
 fi
 
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+    return
+  fi
+
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
+    return
+  fi
+
+  echo "Docker Compose is required. Install the Docker Compose plugin or docker-compose." >&2
+  exit 1
+}
+
 BACKUP_DIR_ABS="$(absolute_path "$BACKUP_DIR")"
 mkdir -p "$BACKUP_DIR_ABS"
 
@@ -227,7 +242,7 @@ backup_mount() {
   destination="$2"
   archive="$3"
 
-  container_id="$(docker compose ps -q "$service")"
+  container_id="$(compose ps -q "$service")"
   if [ -z "$container_id" ]; then
     echo "Service $service is not running. Start the stack before backing up mount $destination." >&2
     exit 1
@@ -252,7 +267,7 @@ backup_postgres() {
   database_env="$3"
   output="$4"
 
-  docker compose exec -T "$service" sh -lc "db=\\$(printenv $database_env || true); user=\\$(printenv $user_env || true); PGPASSWORD=\\"\\\${POSTGRES_PASSWORD:-}\\" pg_dump --clean --if-exists -U \\"\\\${user:-postgres}\\" \\"\\\${db:-postgres}\\"" > "$BACKUP_DIR_ABS/$output"
+  compose exec -T "$service" sh -lc "db=\\$(printenv $database_env || true); user=\\$(printenv $user_env || true); PGPASSWORD=\\"\\\${POSTGRES_PASSWORD:-}\\" pg_dump --clean --if-exists -U \\"\\\${user:-postgres}\\" \\"\\\${db:-postgres}\\"" > "$BACKUP_DIR_ABS/$output"
 }
 
 ${actions}
@@ -295,6 +310,21 @@ if [ -f .env ]; then
   set +a
 fi
 
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+    return
+  fi
+
+  if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
+    return
+  fi
+
+  echo "Docker Compose is required. Install the Docker Compose plugin or docker-compose." >&2
+  exit 1
+}
+
 BACKUP_DIR_ABS="$(absolute_path "$BACKUP_DIR")"
 if [ ! -d "$BACKUP_DIR_ABS" ]; then
   echo "Backup directory does not exist: $BACKUP_DIR_ABS" >&2
@@ -311,7 +341,7 @@ restore_mount() {
     exit 1
   fi
 
-  container_id="$(docker compose ps -q "$service")"
+  container_id="$(compose ps -q "$service")"
   if [ -z "$container_id" ]; then
     echo "Service $service is not running. Start the stack before restoring mount $destination." >&2
     exit 1
@@ -341,7 +371,7 @@ restore_postgres() {
     exit 1
   fi
 
-  docker compose exec -T "$service" sh -lc "db=\\$(printenv $database_env || true); user=\\$(printenv $user_env || true); PGPASSWORD=\\"\\\${POSTGRES_PASSWORD:-}\\" psql -U \\"\\\${user:-postgres}\\" -d \\"\\\${db:-postgres}\\" -v ON_ERROR_STOP=1" < "$BACKUP_DIR_ABS/$input"
+  compose exec -T "$service" sh -lc "db=\\$(printenv $database_env || true); user=\\$(printenv $user_env || true); PGPASSWORD=\\"\\\${POSTGRES_PASSWORD:-}\\" psql -U \\"\\\${user:-postgres}\\" -d \\"\\\${db:-postgres}\\" -v ON_ERROR_STOP=1" < "$BACKUP_DIR_ABS/$input"
 }
 
 ${actions}
